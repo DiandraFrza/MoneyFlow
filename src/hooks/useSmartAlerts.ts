@@ -38,7 +38,8 @@ export const useSmartAlerts = (): SmartAlert[] => {
     // -------------------------------------------------------------------------
     const currentMonthTransactions = transactions.filter((t) => {
       const txDate = new Date(t.date + "T12:00:00");
-      return txDate.getMonth() === 5 && txDate.getFullYear() === 2026; // June 2026
+      const today = new Date();
+      return txDate.getMonth() === today.getMonth() && txDate.getFullYear() === today.getFullYear();
     });
 
     const monthlyIncome = currentMonthTransactions.filter((t) => t.type === "income").reduce((sum, t) => sum + t.amount, 0) || user?.monthly_salary || 0;
@@ -56,14 +57,14 @@ export const useSmartAlerts = (): SmartAlert[] => {
     // -------------------------------------------------------------------------
     // 3. Check Overspending Today (> 50% compared to 7-day average)
     // -------------------------------------------------------------------------
-    // Today's total spending (2026-06-18)
-    const todayStr = "2026-06-18";
+    // Today's total spending
+    const todayStr = new Date().toISOString().split("T")[0];
     const todayExpenses = transactions.filter((t) => t.date === todayStr && (t.type === "expense" || t.type === "installment")).reduce((sum, t) => sum + t.amount, 0);
 
     // Calculate past 7 days spending (excluding today)
     let totalPast7Days = 0;
     for (let i = 1; i <= 7; i++) {
-      const d = new Date("2026-06-18T12:00:00");
+      const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split("T")[0];
 
@@ -92,7 +93,8 @@ export const useSmartAlerts = (): SmartAlert[] => {
         spentByCategory[t.category_id!] = (spentByCategory[t.category_id!] || 0) + t.amount;
       });
 
-    const currentBudgets = budgets.filter((b) => b.month === 6 && b.year === 2026);
+    const today = new Date();
+    const currentBudgets = budgets.filter((b) => b.month === today.getMonth() + 1 && b.year === today.getFullYear());
     currentBudgets.forEach((b) => {
       const spent = spentByCategory[b.category_id] || 0;
       if (spent > b.amount) {
@@ -109,7 +111,7 @@ export const useSmartAlerts = (): SmartAlert[] => {
     // -------------------------------------------------------------------------
     // 5. Bills Due within 3 days (Recurring / Debts)
     // -------------------------------------------------------------------------
-    const todayTime = new Date("2026-06-18T12:00:00").getTime();
+    const todayTime = new Date().getTime();
     const threeDaysFromNow = todayTime + 3 * 24 * 60 * 60 * 1000;
 
     // Check active recurring templates

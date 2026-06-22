@@ -15,7 +15,7 @@ import {
 export const Transactions: React.FC = () => {
   const { user } = useAuthStore();
   const { 
-    transactions, wallets, categories, subcategories, 
+    transactions, transfers, wallets, categories, subcategories, 
     deleteTransaction, budgets, savings, debts 
   } = useFinanceStore();
   
@@ -47,7 +47,21 @@ export const Transactions: React.FC = () => {
 
   // Filter & Sort Logic
   const filteredAndSortedTransactions = useMemo(() => {
-    let result = [...transactions];
+    // Merge transfers mapped to look like transactions
+    const mappedTransfers = transfers.map(tf => ({
+      id: tf.id,
+      user_id: tf.user_id,
+      wallet_id: tf.from_wallet_id,
+      category_id: null,
+      sub_category_id: null,
+      type: 'transfer' as any,
+      amount: tf.amount,
+      description: `${tf.description || 'Transfer'} (Ke: ${walletMap.get(tf.to_wallet_id)?.name || '?'})`,
+      date: tf.date,
+      created_at: tf.created_at
+    }));
+
+    let result = [...transactions, ...mappedTransfers];
 
     // 1. Search text filter
     if (search.trim()) {
@@ -66,12 +80,13 @@ export const Transactions: React.FC = () => {
     }
 
     // 3. Period Filter
-    const today = new Date('2026-06-18T12:00:00'); // simulated today
+    const today = new Date();
     result = result.filter(t => {
       const txDate = new Date(t.date + 'T12:00:00');
       
       if (filterPeriod === 'today') {
-        return t.date === '2026-06-18';
+        const todayStr = new Date().toISOString().split('T')[0];
+        return t.date === todayStr;
       }
       
       if (filterPeriod === 'week') {
@@ -285,6 +300,7 @@ export const Transactions: React.FC = () => {
                       {tx.type === 'savings' && <PiggyBank className="h-5 w-5" />}
                       {tx.type === 'debt_payment' && <Scale className="h-5 w-5" />}
                       {tx.type === 'installment' && <Calendar className="h-5 w-5" />}
+                      {(tx.type as any) === 'transfer' && <ArrowUpRight className="h-5 w-5" />}
                     </div>
                     
                     <div className="min-w-0">

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useAuthStore } from "../store/authStore";
 import { useFinanceStore } from "../store/financeStore";
+import { useModalStore } from "../store/modalStore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import { Button } from "../components/ui/button";
@@ -13,6 +14,7 @@ import { User, Wallet as WalletIcon, Scale, Calendar, Plus, Trash2, PiggyBank, C
 export const Settings: React.FC = () => {
   const { user, updateProfile } = useAuthStore();
   const { wallets, categories, budgets, debts, recurring, addWallet, deleteWallet, setBudget, addDebt, updateDebt, deleteDebt, addRecurring, deleteRecurring } = useFinanceStore();
+  const { openWalletModal, openBudgetModal, openDebtModal, openRecurringModal, openProfileModal } = useModalStore();
 
   const [activeTab, setActiveTab] = useState("profile");
 
@@ -177,8 +179,14 @@ export const Settings: React.FC = () => {
     e.preventDefault();
     if (!user || !recDesc || !recAmount || !recWallet) return;
 
-    // Calculate simulated next date (e.g. July 5th, 2026 or similar depending on the day input)
-    const nextDate = `2026-07-${recDay.padStart(2, "0")}`;
+    const today = new Date();
+    let nextMonth = today.getMonth() + 1; // getMonth is 0-indexed, so +1 for next month
+    let nextYear = today.getFullYear();
+    if (nextMonth > 11) {
+      nextMonth = 0;
+      nextYear += 1;
+    }
+    const nextDate = `${nextYear}-${String(nextMonth + 1).padStart(2, "0")}-${recDay.padStart(2, "0")}`;
 
     await addRecurring(user.id, {
       wallet_id: recWallet,
@@ -214,24 +222,6 @@ export const Settings: React.FC = () => {
           <TabsTrigger value="wallets">
             <span className="hidden sm:inline">Dompet</span>
             <WalletIcon className="h-4.5 w-4.5 sm:hidden" />
-            <Select
-              label="Provider (Opsional)"
-              value={newWalletProvider}
-              onChange={(e) => setNewWalletProvider(e.target.value)}
-              options={[
-                { value: "", label: "Pilih Provider (opsional)" },
-                { value: "Mandiri", label: "Bank Mandiri" },
-                { value: "BCA", label: "Bank BCA" },
-                { value: "BNI", label: "Bank BNI" },
-                { value: "BRI", label: "Bank BRI" },
-                { value: "SeaBank", label: "Sea Bank" },
-                { value: "Jago", label: "Jago" },
-                { value: "GoPay", label: "GoPay" },
-                { value: "Dana", label: "Dana" },
-                { value: "OVO", label: "OVO" },
-                { value: "Other", label: "Lainnya" },
-              ]}
-            />
           </TabsTrigger>
           <TabsTrigger value="budgets">
             <span className="hidden sm:inline">Anggaran</span>
@@ -244,7 +234,6 @@ export const Settings: React.FC = () => {
           <TabsTrigger value="recurring">
             <span className="hidden sm:inline">Rutin</span>
             <Calendar className="h-4.5 w-4.5 sm:hidden" />
-            <Input label="Keterangan / Catatan (Opsional)" placeholder="Contoh: Rekening gaji utama atau saldo e-wallet" value={newWalletNotes} onChange={(e) => setNewWalletNotes(e.target.value)} />
           </TabsTrigger>
         </TabsList>
 
@@ -261,12 +250,16 @@ export const Settings: React.FC = () => {
               <CardDescription>Sesuaikan informasi dasar untuk algoritma kesehatan keuangan.</CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleUpdateProfile} className="flex flex-col gap-4 max-w-md">
-                <Input label="Nama Pengguna" value={profileName} onChange={(e) => setProfileName(e.target.value)} required />
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Input type="number" label="Gaji Bulanan (Rp)" value={profileSalary} onChange={(e) => setProfileSalary(e.target.value)} required />
-                  <Input type="number" label="Target Jangka Panjang (Rp)" value={profileTarget} onChange={(e) => setProfileTarget(e.target.value)} required />
+              <div className="flex flex-col gap-4 max-w-md">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-xs font-bold mb-2">Nama: {user?.name || "N/A"}</h3>
+                    <h3 className="text-xs font-bold mb-2">Gaji Bulanan: {user?.monthly_salary ? `Rp ${user.monthly_salary.toLocaleString("id-ID")}` : "Belum diatur"}</h3>
+                    <h3 className="text-xs font-bold">Target Jangka Panjang: {user?.financial_target ? `Rp ${user.financial_target.toLocaleString("id-ID")}` : "Belum diatur"}</h3>
+                  </div>
+                  <Button onClick={() => openProfileModal()} className="h-11 font-bold text-xs">
+                    Edit Profil
+                  </Button>
                 </div>
 
                 {profileSuccess && (
@@ -276,10 +269,19 @@ export const Settings: React.FC = () => {
                   </p>
                 )}
 
-                <Button type="submit" className="h-11 font-bold mt-2 text-xs">
-                  Simpan Perubahan
-                </Button>
-              </form>
+                <form onSubmit={handleUpdateProfile} className="flex flex-col gap-4">
+                  <Input label="Nama Pengguna" value={profileName} onChange={(e) => setProfileName(e.target.value)} required />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input type="number" label="Gaji Bulanan (Rp)" value={profileSalary} onChange={(e) => setProfileSalary(e.target.value)} required />
+                    <Input type="number" label="Target Jangka Panjang (Rp)" value={profileTarget} onChange={(e) => setProfileTarget(e.target.value)} required />
+                  </div>
+
+                  <Button type="submit" className="h-11 font-bold mt-2 text-xs">
+                    Simpan Perubahan
+                  </Button>
+                </form>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -311,8 +313,28 @@ export const Settings: React.FC = () => {
                       { value: "other", label: "Lainnya" },
                     ]}
                   />
+                  <Select
+                    label="Provider (Opsional)"
+                    value={newWalletProvider}
+                    onChange={(e) => setNewWalletProvider(e.target.value)}
+                    options={[
+                      { value: "", label: "Pilih Provider (opsional)" },
+                      { value: "Mandiri", label: "Bank Mandiri" },
+                      { value: "BCA", label: "Bank BCA" },
+                      { value: "BNI", label: "Bank BNI" },
+                      { value: "BRI", label: "Bank BRI" },
+                      { value: "SeaBank", label: "Sea Bank" },
+                      { value: "Jago", label: "Jago" },
+                      { value: "GoPay", label: "GoPay" },
+                      { value: "Dana", label: "Dana" },
+                      { value: "OVO", label: "OVO" },
+                      { value: "Other", label: "Lainnya" },
+                    ]}
+                  />
 
                   <Input type="number" label="Saldo Awal (Rp)" placeholder="0" value={newWalletBalance} onChange={(e) => setNewWalletBalance(e.target.value)} />
+
+                  <Input label="Keterangan / Catatan (Opsional)" placeholder="Contoh: Rekening gaji utama atau saldo e-wallet" value={newWalletNotes} onChange={(e) => setNewWalletNotes(e.target.value)} />
 
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-semibold text-text-mutedLight tracking-wide">Pilih Warna</label>
@@ -325,6 +347,9 @@ export const Settings: React.FC = () => {
                   <Button type="submit" className="h-11 font-bold mt-2 text-xs">
                     <Plus className="h-4.5 w-4.5 mr-1.5" />
                     Tambah Dompet
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => openWalletModal("add")} className="h-11 font-bold text-xs">
+                    atau Gunakan Modal
                   </Button>
                 </form>
               </CardContent>
@@ -355,12 +380,17 @@ export const Settings: React.FC = () => {
 
                     <div className="flex items-center gap-4">
                       <h4 className="text-xs font-black">{formatCurrency(w.balance)}</h4>
-                      {/* Prevent deleting if only 1 wallet remains */}
-                      {wallets.length > 1 && (
-                        <button onClick={() => handleDeleteWallet(w.id)} className="p-2 rounded-lg bg-slate-50 hover:bg-red-50 text-text-mutedLight hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-950/20 transition-all btn-pressable">
-                          <Trash2 className="h-4 w-4" />
+                      <div className="flex gap-2">
+                        <button onClick={() => openWalletModal("edit", w.id)} className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/20 dark:hover:bg-blue-950/40 transition-all btn-pressable text-[10px] font-bold">
+                          Edit
                         </button>
-                      )}
+                        {/* Prevent deleting if only 1 wallet remains */}
+                        {wallets.length > 1 && (
+                          <button onClick={() => openWalletModal("delete", w.id)} className="p-2 rounded-lg bg-slate-50 hover:bg-red-50 text-text-mutedLight hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-950/20 transition-all btn-pressable">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -375,28 +405,49 @@ export const Settings: React.FC = () => {
         <TabsContent value="budgets">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Atur Batas Anggaran Bulanan (Juni 2026)</CardTitle>
+              <CardTitle className="text-base flex items-center justify-between">
+                <span>Atur Batas Anggaran Bulanan (Juni 2026)</span>
+                <Button onClick={() => openBudgetModal("add")} className="h-9 text-xs">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Tambah Budget
+                </Button>
+              </CardTitle>
               <CardDescription>Tentukan limit pengeluaran per kategori agar tidak boros.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-5 max-w-lg">
               <div className="flex flex-col gap-4">
-                {expenseCategories.map((cat) => (
-                  <div key={cat.id} className="grid grid-cols-2 items-center gap-4 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/10">
-                    <div className="flex items-center gap-2.5">
-                      <span className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: cat.color }} />
-                      <span className="text-xs font-bold">{cat.name}</span>
+                {expenseCategories.map((cat) => {
+                  const catBudget = budgets.find((b) => b.category_id === cat.id && b.month === 6 && b.year === 2026);
+                  return (
+                    <div key={cat.id} className="grid grid-cols-2 items-center gap-4 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/10">
+                      <div className="flex items-center gap-2.5">
+                        <span className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: cat.color }} />
+                        <span className="text-xs font-bold">{cat.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          placeholder="Belum ada limit"
+                          value={budgetValues[cat.id] || ""}
+                          onChange={(e) => {
+                            setBudgetValues({ ...budgetValues, [cat.id]: e.target.value });
+                          }}
+                          className="h-10 text-right flex-1 px-2"
+                        />
+                        {catBudget && (
+                          <button onClick={() => openBudgetModal("edit", catBudget.id)} className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/20 text-[10px] font-bold">
+                            Edit
+                          </button>
+                        )}
+                        {catBudget && (
+                          <button onClick={() => openBudgetModal("delete", catBudget.id)} className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/20">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <Input
-                      type="number"
-                      placeholder="Belum ada limit"
-                      value={budgetValues[cat.id] || ""}
-                      onChange={(e) => {
-                        setBudgetValues({ ...budgetValues, [cat.id]: e.target.value });
-                      }}
-                      className="h-10 text-right"
-                    />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {budgetSuccess && (
@@ -446,6 +497,9 @@ export const Settings: React.FC = () => {
 
                   <Button type="submit" className="h-11 font-bold mt-2 text-xs">
                     Catat Utang
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => openDebtModal("add")} className="h-11 font-bold text-xs">
+                    atau Gunakan Modal
                   </Button>
                 </form>
               </CardContent>
@@ -500,7 +554,10 @@ export const Settings: React.FC = () => {
                               </Button>
                             </div>
                           )}
-                          <button onClick={() => handleDeleteDebt(d.id)} className="p-1.5 rounded-lg bg-slate-50 hover:bg-red-50 text-text-mutedLight hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-950/20 transition-all">
+                          <button onClick={() => openDebtModal("edit", d.id)} className="px-2 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/20 text-[9px] font-bold">
+                            Edit
+                          </button>
+                          <button onClick={() => openDebtModal("delete", d.id)} className="p-1.5 rounded-lg bg-slate-50 hover:bg-red-50 text-text-mutedLight hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-950/20 transition-all">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
@@ -551,6 +608,9 @@ export const Settings: React.FC = () => {
                   <Button type="submit" className="h-11 font-bold mt-2 text-xs">
                     Aktifkan Rutinitas
                   </Button>
+                  <Button type="button" variant="outline" onClick={() => openRecurringModal("add")} className="h-11 font-bold text-xs">
+                    atau Gunakan Modal
+                  </Button>
                 </form>
               </CardContent>
             </Card>
@@ -576,9 +636,12 @@ export const Settings: React.FC = () => {
                         <span className="text-[8px] font-bold text-primary mt-1 inline-block">Tempo berikutnya: {r.next_date}</span>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                         <h4 className="text-xs font-black text-danger">-{formatCurrency(r.amount)}</h4>
-                        <button onClick={() => handleDeleteRec(r.id)} className="p-2 rounded-lg bg-slate-50 hover:bg-red-50 text-text-mutedLight hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-950/20 transition-all btn-pressable">
+                        <button onClick={() => openRecurringModal("edit", r.id)} className="px-2 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/20 text-[9px] font-bold">
+                          Edit
+                        </button>
+                        <button onClick={() => openRecurringModal("delete", r.id)} className="p-2 rounded-lg bg-slate-50 hover:bg-red-50 text-text-mutedLight hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-950/20 transition-all btn-pressable">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>

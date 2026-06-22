@@ -24,7 +24,8 @@ export const Dashboard: React.FC = () => {
   const currentMonthTransactions = useMemo(() => {
     return transactions.filter((t) => {
       const txDate = new Date(t.date + "T12:00:00");
-      return txDate.getMonth() === 5 && txDate.getFullYear() === 2026; // June 2026
+      const today = new Date();
+      return txDate.getMonth() === today.getMonth() && txDate.getFullYear() === today.getFullYear();
     });
   }, [transactions]);
 
@@ -42,11 +43,13 @@ export const Dashboard: React.FC = () => {
 
   // 2. Budget calculation
   const totalBudgetsLimit = useMemo(() => {
-    return budgets.filter((b) => b.month === 6 && b.year === 2026).reduce((sum, b) => sum + b.amount, 0);
+    const today = new Date();
+    return budgets.filter((b) => b.month === today.getMonth() + 1 && b.year === today.getFullYear()).reduce((sum, b) => sum + b.amount, 0);
   }, [budgets]);
 
   const remainingBudgets = useMemo(() => {
-    const activeBudgets = budgets.filter((b) => b.month === 6 && b.year === 2026);
+    const today = new Date();
+    const activeBudgets = budgets.filter((b) => b.month === today.getMonth() + 1 && b.year === today.getFullYear());
     const categoryIds = new Set(activeBudgets.map((b) => b.category_id));
 
     const spentOnBudgeted = currentMonthTransactions.filter((t) => (t.type === "expense" || t.type === "installment") && t.category_id && categoryIds.has(t.category_id)).reduce((sum, t) => sum + t.amount, 0);
@@ -81,7 +84,7 @@ export const Dashboard: React.FC = () => {
   const cashFlowTrendData = useMemo(() => {
     const days = [];
     for (let i = 6; i >= 0; i--) {
-      const d = new Date("2026-06-18T12:00:00");
+      const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split("T")[0];
       const formattedDay = d.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
@@ -122,7 +125,8 @@ export const Dashboard: React.FC = () => {
     }
 
     // Rata-rata Harian
-    const totalDays = 18; // June 1 to June 18
+    const today = new Date();
+    const totalDays = today.getDate(); // Use current day of month
     const averageDaily = totalExpense / totalDays;
     insights.push(`Rata-rata pengeluaran harian Anda adalah ${formatCurrency(Math.round(averageDaily))}.`);
 

@@ -7,6 +7,17 @@ import { supabase, isSupabaseConfigured } from "./supabase";
 import type { UserProfile, UserSettings, Wallet, Category, SubCategory, Transaction, WalletTransfer, Budget, SavingsGoal, Debt, RecurringTransaction, AppNotification, FinancialHealthLog } from "../types";
 
 // =========================================================================
+// DEBUG HELPER
+// =========================================================================
+const dbLog = (operation: string, table: string, payload?: any, error?: any) => {
+  if (error) {
+    console.error(`[DB] ❌ ${operation} ${table}:`, error?.message || error, "| Payload:", payload);
+  } else {
+    console.log(`[DB] ✅ ${operation} ${table}:`, payload !== undefined ? payload : "(no payload)");
+  }
+};
+
+// =========================================================================
 // MOCK & SEED DATA (For LocalStorage Fallback)
 // =========================================================================
 
@@ -86,9 +97,9 @@ const DEFAULT_SUB_CATEGORIES: SubCategory[] = [
   { id: "sub-game", category_id: "cat-hiburan", name: "Game" },
 ];
 
-// Generate dynamic dates relative to current date (2026-06-18)
+// Generate dynamic dates relative to current date
 const getDateOffset = (days: number): string => {
-  const d = new Date("2026-06-18T12:00:00");
+  const d = new Date();
   d.setDate(d.getDate() - days);
   return d.toISOString().split("T")[0];
 };
@@ -201,7 +212,9 @@ export const db = {
   profile: {
     get: async (userId: string): Promise<UserProfile> => {
       if (isSupabaseConfigured && userId !== "local-user") {
+        console.log("[DB] GET profile, user_id:", userId);
         const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
+        dbLog("SELECT", "profiles", { userId }, error);
         if (!error && data) return data;
 
         // Auto-create profile if missing (PGRST116: no rows returned)
@@ -210,10 +223,12 @@ export const db = {
             id: userId,
             name: "User MoneyFlow",
             currency: "Rp",
-            monthly_salary: 8500000,
-            financial_target: 30000000,
+            monthly_salary: 0,
+            financial_target: 0,
           };
-          const { data: created } = await supabase.from("profiles").insert([newProfile]).select().single();
+          console.log("[DB] INSERT profile:", newProfile);
+          const { data: created, error: createErr } = await supabase.from("profiles").insert([newProfile]).select().single();
+          dbLog("INSERT", "profiles", newProfile, createErr);
           if (created) return created;
           return newProfile;
         }
@@ -224,7 +239,9 @@ export const db = {
     },
     update: async (userId: string, updates: Partial<UserProfile>): Promise<UserProfile> => {
       if (isSupabaseConfigured && userId !== "local-user") {
+        console.log("[DB] UPDATE profile, user_id:", userId, "updates:", updates);
         const { data, error } = await supabase.from("profiles").update(updates).eq("id", userId).select().single();
+        dbLog("UPDATE", "profiles", updates, error);
         if (!error && data) return data;
       }
       // Fallback
@@ -273,19 +290,26 @@ export const db = {
   wallets: {
     list: async (userId: string): Promise<Wallet[]> => {
       if (isSupabaseConfigured && userId !== "local-user") {
+        console.log("[DB] LIST wallets, user_id:", userId);
         const { data, error } = await supabase.from("wallets").select("*").eq("user_id", userId).order("name");
+        dbLog("SELECT", "wallets", { userId, count: data?.length }, error);
         if (!error && data) return data;
+        if (error) console.error("[DB] wallets list error:", error);
       }
       return getLS<Wallet[]>("mf_wallets");
     },
     create: async (userId: string, wallet: Omit<Wallet, "id" | "user_id">): Promise<Wallet> => {
       if (isSupabaseConfigured && userId !== "local-user") {
+        const payload = { ...wallet, user_id: userId };
+        console.log("[DB] INSERT wallet:", payload);
         const { data, error } = await supabase
           .from("wallets")
-          .insert([{ ...wallet, user_id: userId }])
+          .insert([payload])
           .select()
           .single();
+        dbLog("INSERT", "wallets", payload, error);
         if (!error && data) return data;
+        if (error) throw new Error(`Gagal membuat wallet: ${error.message}`);
       }
       const list = getLS<Wallet[]>("mf_wallets");
       const newWallet: Wallet = { ...wallet, id: "w-" + Math.random().toString(36).substring(2, 9), user_id: userId, balance: Number(wallet.balance) || 0 };
@@ -295,8 +319,11 @@ export const db = {
     },
     update: async (userId: string, id: string, updates: Partial<Wallet>): Promise<Wallet> => {
       if (isSupabaseConfigured && userId !== "local-user") {
-        const { data, error } = await supabase.from("wallets").update(updates).eq("id", id).select().single();
+        console.log("[DB] UPDATE wallet, id:", id, "updates:", updates);
+        const { data, error } = await supabase.from("wallets").update(updates).eq("id", id).eq("user_id", userId).select().single();
+        dbLog("UPDATE", "wallets", { id, updates }, error);
         if (!error && data) return data;
+        if (error) throw new Error(`Gagal update wallet: ${error.message}`);
       }
       const list = getLS<Wallet[]>("mf_wallets");
       const idx = list.findIndex((w) => w.id === id);
@@ -308,7 +335,10 @@ export const db = {
     },
     delete: async (userId: string, id: string): Promise<boolean> => {
       if (isSupabaseConfigured && userId !== "local-user") {
-        const { error } = await supabase.from("wallets").delete().eq("id", id);
+        console.log("[DB] DELETE wallet, id:", id);
+        const { error } = await supabase.from("wallets").delete().eq("id", id).eq("user_id", userId);
+        dbLog("DELETE", "wallets", { id }, error);
+        if (error) throw new Error(`Gagal hapus wallet: ${error.message}`);
         return !error;
       }
       const list = getLS<Wallet[]>("mf_wallets");
@@ -376,19 +406,26 @@ export const db = {
   transactions: {
     list: async (userId: string): Promise<Transaction[]> => {
       if (isSupabaseConfigured && userId !== "local-user") {
+        console.log("[DB] LIST transactions, user_id:", userId);
         const { data, error } = await supabase.from("transactions").select("*").eq("user_id", userId).order("date", { ascending: false });
+        dbLog("SELECT", "transactions", { userId, count: data?.length }, error);
         if (!error && data) return data;
+        if (error) console.error("[DB] transactions list error:", error);
       }
       return getLS<Transaction[]>("mf_transactions").sort((a, b) => b.date.localeCompare(a.date));
     },
     create: async (userId: string, tx: Omit<Transaction, "id" | "user_id">): Promise<Transaction> => {
       if (isSupabaseConfigured && userId !== "local-user") {
+        const payload = { ...tx, user_id: userId };
+        console.log("[DB] INSERT transaction:", payload);
         const { data, error } = await supabase
           .from("transactions")
-          .insert([{ ...tx, user_id: userId }])
+          .insert([payload])
           .select()
           .single();
+        dbLog("INSERT", "transactions", payload, error);
         if (!error && data) return data;
+        if (error) throw new Error(`Gagal simpan transaksi: ${error.message}`);
       }
 
       const newTx: Transaction = {
@@ -576,6 +613,16 @@ export const db = {
         setLS("mf_budgets", list);
         return newBudget;
       }
+    },
+    delete: async (userId: string, id: string): Promise<boolean> => {
+      if (isSupabaseConfigured && userId !== "local-user") {
+        const { error } = await supabase.from("budgets").delete().eq("id", id);
+        return !error;
+      }
+      const list = getLS<Budget[]>("mf_budgets");
+      const filtered = list.filter((b) => b.id !== id);
+      setLS("mf_budgets", filtered);
+      return true;
     },
   },
 
@@ -864,7 +911,8 @@ export const db = {
 export const runRecurringEngine = async (userId: string): Promise<number> => {
   const templates = await db.recurring.list(userId);
   const activeTemplates = templates.filter((t) => t.status === "active");
-  const today = new Date("2026-06-18T12:00:00"); // simulated local date
+  const today = new Date(); // Tanggal hari ini yang sebenarnya
+  today.setHours(23, 59, 59, 0); // set ke akhir hari agar semua kejadian hari ini diproses
   let count = 0;
 
   for (const template of activeTemplates) {
@@ -923,16 +971,19 @@ export const ensureDatabaseSeeded = async (userId: string): Promise<void> => {
   if (!isSupabaseConfigured || userId === "local-user") return;
 
   try {
+    console.log("[Seed] Memulai ensureDatabaseSeeded untuk user:", userId);
+
     // 1. Double check profile & settings exist (will auto-create if missing)
     await db.profile.get(userId);
     await db.settings.get(userId);
 
     // 2. Seed Default Categories if not present
-    const { data: catCheck } = await supabase.from("categories").select("id").limit(1);
+    const { data: catCheck, error: catErr } = await supabase.from("categories").select("id").limit(1);
+    console.log("[Seed] Cek kategori:", catCheck?.length, "error:", catErr?.message);
     if (!catCheck || catCheck.length === 0) {
-      console.log("Seeding default categories in Supabase...");
+      console.log("[Seed] Seeding default categories ke Supabase...");
       for (const cat of DEFAULT_CATEGORIES) {
-        const { data: newCat } = await supabase
+        const { data: newCat, error: catInsertErr } = await supabase
           .from("categories")
           .insert([
             {
@@ -945,38 +996,57 @@ export const ensureDatabaseSeeded = async (userId: string): Promise<void> => {
           ])
           .select()
           .single();
+        
+        if (catInsertErr) console.error("[Seed] Error insert category:", catInsertErr.message);
 
         if (newCat) {
           // Find matching default subcategories
           const subs = DEFAULT_SUB_CATEGORIES.filter((sc) => sc.category_id === cat.id);
           if (subs.length > 0) {
-            await supabase.from("sub_categories").insert(
+            const { error: subErr } = await supabase.from("sub_categories").insert(
               subs.map((s) => ({
                 category_id: newCat.id,
                 name: s.name,
               })),
             );
+            if (subErr) console.error("[Seed] Error insert subcategories:", subErr.message);
           }
         }
       }
     }
 
-    // 3. Seed Default Wallet if user has 0 wallets
-    const { data: walletCheck } = await supabase.from("wallets").select("id").eq("user_id", userId).limit(1);
+    // 3. Seed Default Wallets jika user belum punya wallet
+    const { data: walletCheck, error: walletErr } = await supabase.from("wallets").select("id").eq("user_id", userId).limit(1);
+    console.log("[Seed] Cek wallet:", walletCheck?.length, "error:", walletErr?.message);
+    
     if (!walletCheck || walletCheck.length === 0) {
-      console.log("Seeding default Cash wallet in Supabase...");
-      await supabase.from("wallets").insert([
-        {
-          user_id: userId,
-          name: "Cash (Tunai)",
-          type: "cash",
-          balance: 0,
-          icon: "Wallet",
-          color: "#10B981",
-        },
-      ]);
+      console.log("[Seed] Seeding default wallets ke Supabase untuk user:", userId);
+      
+      const defaultWallets = [
+        { user_id: userId, name: "Cash (Tunai)", type: "cash", balance: 0, icon: "Wallet", color: "#10B981" },
+        { user_id: userId, name: "Bank BCA", type: "bank", provider: "BCA", balance: 0, icon: "CreditCard", color: "#0066CC" },
+        { user_id: userId, name: "Bank Mandiri", type: "bank", provider: "Mandiri", balance: 0, icon: "CreditCard", color: "#003F87" },
+        { user_id: userId, name: "Sea Bank", type: "bank", provider: "SeaBank", balance: 0, icon: "CreditCard", color: "#2B5EAB" },
+        { user_id: userId, name: "GoPay", type: "e-wallet", provider: "GoPay", balance: 0, icon: "Smartphone", color: "#00AED6" },
+        { user_id: userId, name: "Dana", type: "e-wallet", provider: "Dana", balance: 0, icon: "Smartphone", color: "#118EEA" },
+        { user_id: userId, name: "OVO", type: "e-wallet", provider: "OVO", balance: 0, icon: "Smartphone", color: "#4C3494" },
+      ];
+
+      const { error: walletInsertErr } = await supabase.from("wallets").insert(defaultWallets);
+      if (walletInsertErr) {
+        console.error("[Seed] Error insert default wallets:", walletInsertErr.message);
+        // Fallback: coba insert satu per satu jika batch gagal
+        for (const w of defaultWallets) {
+          const { error: singleErr } = await supabase.from("wallets").insert([w]);
+          if (singleErr) console.error("[Seed] Error insert wallet single:", w.name, singleErr.message);
+        }
+      } else {
+        console.log("[Seed] ✅ Default wallets berhasil dibuat:", defaultWallets.length, "wallet");
+      }
     }
+    
+    console.log("[Seed] ✅ ensureDatabaseSeeded selesai");
   } catch (err) {
-    console.error("Error in ensureDatabaseSeeded:", err);
+    console.error("[Seed] Error in ensureDatabaseSeeded:", err);
   }
 };

@@ -1,65 +1,92 @@
-import React, { useEffect } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuthStore } from './store/authStore';
-import { useFinanceStore } from './store/financeStore';
-import { AppLayout } from './components/layout/AppLayout';
-import { Auth } from './pages/Auth';
-import { Dashboard } from './pages/Dashboard';
-import { Transactions } from './pages/Transactions';
-import { Reports } from './pages/Reports';
-import { Settings } from './pages/Settings';
+/** @format */
 
+import React, { useEffect, useCallback } from "react";
+import { HashRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { useAuthStore } from "./store/authStore";
+import { useFinanceStore } from "./store/financeStore";
+import { useModalStore } from "./store/modalStore";
+import { AppLayout } from "./components/layout/AppLayout";
+import { Auth } from "./pages/Auth";
+import { Dashboard } from "./pages/Dashboard";
+import { Transactions } from "./pages/Transactions";
+import { Reports } from "./pages/Reports";
+import { Settings } from "./pages/Settings";
+import { WalletConfigModal, BudgetConfigModal, DebtConfigModal, RecurringConfigModal, ProfileConfigModal } from "./components/modals";
+
+// ============================================================
+// LOADING SCREEN COMPONENT
+// ============================================================
+const LoadingScreen: React.FC<{ message?: string }> = ({ message = "Menyiapkan MoneyFlow Pro..." }) => (
+  <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col items-center justify-center gap-5">
+    {/* Animated Logo */}
+    <div className="relative">
+      <div className="h-20 w-20 rounded-2xl bg-primary flex items-center justify-center text-white font-black text-4xl shadow-lg">
+        M
+      </div>
+      <div className="absolute -inset-2 rounded-3xl border-4 border-primary/20 animate-ping" />
+    </div>
+    {/* Spinner */}
+    <div className="h-8 w-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+    <p className="text-sm font-semibold text-text-mutedLight dark:text-text-mutedDark animate-pulse">{message}</p>
+  </div>
+);
+
+// ============================================================
+// MAIN APP
+// ============================================================
 export const App: React.FC = () => {
   const { user, initialize, loading: authLoading } = useAuthStore();
-  const { fetchData, loading: financeLoading } = useFinanceStore();
+  const { fetchData, loading: financeLoading, wallets, budgets, debts, recurring, lastFetchedUserId } = useFinanceStore();
+  const { activeModal, selectedId } = useModalStore();
 
-  // 1. Initialize Auth on mount
+  // 1. Initialize Auth ONCE on mount — wait for session check before rendering anything
   useEffect(() => {
+    console.log("[App] Inisialisasi auth...");
     initialize();
-  }, [initialize]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 2. Fetch financial data when user logs in or profile updates
+  // 2. Fetch financial data when user.id becomes available or changes
+  //    Guard: only fetch if user.id is different from lastFetchedUserId
+  const triggerFetch = useCallback(async (userId: string) => {
+    console.log("[App] Memulai fetch data untuk user:", userId);
+    await fetchData(userId);
+  }, [fetchData]);
+
   useEffect(() => {
-    if (user) {
-      fetchData(user.id);
+    if (user?.id && user.id !== lastFetchedUserId) {
+      console.log("[App] User tersedia, trigger fetchData. userId:", user.id);
+      triggerFetch(user.id);
     }
-  }, [user, fetchData]);
+  }, [user?.id, lastFetchedUserId, triggerFetch]);
 
-  // Render spinner if auth is initializing
+  // ── PHASE 1: Auth masih loading (cek session Supabase) ──
+  // Harus ditampilkan sebelum apapun untuk menghindari flickering ke halaman login
   if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col items-center justify-center gap-4">
-        <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-        <span className="text-xs font-bold text-text-mutedLight dark:text-text-mutedDark animate-pulse">
-          Menyiapkan Dompet MoneyFlow Pro...
-        </span>
-      </div>
-    );
+    return <LoadingScreen message="Mengecek sesi login Anda..." />;
   }
 
-  // If not logged in (user is null), send to Auth screen
+  // ── PHASE 2: Belum login ──
   if (!user) {
     return <Auth />;
   }
 
+  // ── PHASE 3: Sudah login, data keuangan masih diambil ──
+  // Tampilkan skeleton loading, bukan layar kosong
   return (
     <Router>
       <AppLayout>
-        {/* Screen Loading Skeleton Overlay */}
+        {/* Screen Loading Skeleton saat data keuangan masih loading */}
         {financeLoading ? (
-          <div className="flex flex-col gap-6 w-full">
-            {/* Header skeletal */}
-            <div className="h-20 bg-slate-200/50 dark:bg-slate-800/40 rounded-xl animate-pulse w-full"></div>
-            {/* Grid layout cards skeletal */}
+          <div className="flex flex-col gap-6 w-full animate-fade-in">
+            <div className="h-24 bg-slate-200/50 dark:bg-slate-800/40 rounded-2xl animate-pulse w-full" />
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-28 bg-slate-200/50 dark:bg-slate-800/40 rounded-xl animate-pulse"></div>
+                <div key={i} className="h-28 bg-slate-200/50 dark:bg-slate-800/40 rounded-2xl animate-pulse" />
               ))}
             </div>
-            {/* Main container skeletal */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
-              <div className="md:col-span-1 h-64 bg-slate-200/50 dark:bg-slate-800/40 rounded-xl animate-pulse"></div>
-              <div className="md:col-span-2 h-64 bg-slate-200/50 dark:bg-slate-800/40 rounded-xl animate-pulse"></div>
+              <div className="md:col-span-1 h-64 bg-slate-200/50 dark:bg-slate-800/40 rounded-2xl animate-pulse" />
+              <div className="md:col-span-2 h-64 bg-slate-200/50 dark:bg-slate-800/40 rounded-2xl animate-pulse" />
             </div>
           </div>
         ) : (
@@ -73,6 +100,13 @@ export const App: React.FC = () => {
           </Routes>
         )}
       </AppLayout>
+
+      {/* Global Modal System */}
+      <WalletConfigModal isOpen={activeModal === "wallet"} wallet={selectedId ? wallets.find((w) => w.id === selectedId) : undefined} />
+      <BudgetConfigModal isOpen={activeModal === "budget"} budget={selectedId ? budgets.find((b) => b.id === selectedId) : undefined} />
+      <DebtConfigModal isOpen={activeModal === "debt"} debt={selectedId ? debts.find((d) => d.id === selectedId) : undefined} />
+      <RecurringConfigModal isOpen={activeModal === "recurring"} recurring={selectedId ? recurring.find((r) => r.id === selectedId) : undefined} />
+      <ProfileConfigModal isOpen={activeModal === "profile"} />
     </Router>
   );
 };

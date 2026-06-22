@@ -31,15 +31,18 @@ export const exportToExcel = (data: ExportData) => {
   const totalExpense = data.transactions.filter(t => t.type === 'expense' || t.type === 'installment').reduce((sum, t) => sum + t.amount, 0);
   const totalSavings = data.transactions.filter(t => t.type === 'savings').reduce((sum, t) => sum + t.amount, 0);
   
+  const currentMonthName = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+
   const summaryRows = [
     { 'Parameter Keuangan': 'Nama Pengguna', 'Nilai': data.profile.name },
     { 'Parameter Keuangan': 'Gaji Bulanan', 'Nilai': formatCurrencyStr(data.profile.monthly_salary) },
     { 'Parameter Keuangan': 'Total Saldo Saat Ini', 'Nilai': formatCurrencyStr(totalBalance) },
-    { 'Parameter Keuangan': 'Total Pemasukan Juni 2026', 'Nilai': formatCurrencyStr(totalIncome) },
-    { 'Parameter Keuangan': 'Total Pengeluaran Juni 2026', 'Nilai': formatCurrencyStr(totalExpense) },
+    { 'Parameter Keuangan': `Total Pemasukan ${currentMonthName}`, 'Nilai': formatCurrencyStr(totalIncome) },
+    { 'Parameter Keuangan': `Total Pengeluaran ${currentMonthName}`, 'Nilai': formatCurrencyStr(totalExpense) },
     { 'Parameter Keuangan': 'Total Tabungan Dialokasikan', 'Nilai': formatCurrencyStr(totalSavings) },
   ];
   const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
+  summarySheet['!cols'] = [{ wch: 30 }, { wch: 25 }];
   XLSX.utils.book_append_sheet(wb, summarySheet, 'Ringkasan');
 
   // B. Transactions Sheet
@@ -59,6 +62,7 @@ export const exportToExcel = (data: ExportData) => {
     'Catatan': t.description || '-'
   }));
   const txSheet = XLSX.utils.json_to_sheet(transactionRows);
+  txSheet['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 30 }];
   XLSX.utils.book_append_sheet(wb, txSheet, 'Transaksi');
 
   // C. Wallets Sheet
@@ -69,6 +73,7 @@ export const exportToExcel = (data: ExportData) => {
     'Warna': w.color
   }));
   const walletSheet = XLSX.utils.json_to_sheet(walletRows);
+  walletSheet['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 15 }];
   XLSX.utils.book_append_sheet(wb, walletSheet, 'Dompet');
 
   // D. Budgets Sheet
@@ -86,6 +91,7 @@ export const exportToExcel = (data: ExportData) => {
     };
   });
   const budgetSheet = XLSX.utils.json_to_sheet(budgetRows);
+  budgetSheet['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 }];
   XLSX.utils.book_append_sheet(wb, budgetSheet, 'Anggaran');
 
   // E. Savings Sheet
@@ -98,6 +104,7 @@ export const exportToExcel = (data: ExportData) => {
     'Progress': `${Math.round((s.current_amount / s.target_amount) * 100)}%`
   }));
   const savingsSheet = XLSX.utils.json_to_sheet(savingsRows);
+  savingsSheet['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }];
   XLSX.utils.book_append_sheet(wb, savingsSheet, 'Target Tabungan');
 
   // F. Debts Sheet
@@ -111,6 +118,7 @@ export const exportToExcel = (data: ExportData) => {
     'Keterangan': d.description || '-'
   }));
   const debtSheet = XLSX.utils.json_to_sheet(debtRows);
+  debtSheet['!cols'] = [{ wch: 25 }, { wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 30 }];
   XLSX.utils.book_append_sheet(wb, debtSheet, 'Utang-Piutang');
 
   // Save the workbook
@@ -136,7 +144,7 @@ export const exportToPDF = (data: ExportData, healthScore: number, healthStatus:
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text('Laporan Ringkasan Analisis Keuangan Pribadi', 14, 25);
-  doc.text(`Dicetak: 2026-06-18 | Pengguna: ${data.profile.name}`, 14, 31);
+  doc.text(`Dicetak: ${new Date().toLocaleDateString('id-ID')} | Pengguna: ${data.profile.name}`, 14, 31);
   
   // Reset text color
   doc.setTextColor(15, 23, 42); // slate-900
@@ -151,11 +159,13 @@ export const exportToPDF = (data: ExportData, healthScore: number, healthStatus:
   const totalExpense = data.transactions.filter(t => t.type === 'expense' || t.type === 'installment').reduce((sum, t) => sum + t.amount, 0);
   const totalSavings = data.transactions.filter(t => t.type === 'savings').reduce((sum, t) => sum + t.amount, 0);
 
+  const currentMonthName = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+
   const summaryHeaders = [['Kategori Rangkuman', 'Nominal']];
   const summaryBody = [
-    ['Total Pendapatan Terdaftar (Juni 2026)', formatCurrencyStr(totalIncome)],
-    ['Total Pengeluaran Terdaftar (Juni 2026)', formatCurrencyStr(totalExpense)],
-    ['Total Alokasi Tabungan (Juni 2026)', formatCurrencyStr(totalSavings)],
+    [`Total Pendapatan Terdaftar (${currentMonthName})`, formatCurrencyStr(totalIncome)],
+    [`Total Pengeluaran Terdaftar (${currentMonthName})`, formatCurrencyStr(totalExpense)],
+    [`Total Alokasi Tabungan (${currentMonthName})`, formatCurrencyStr(totalSavings)],
     ['Sisa Saldo Kumulatif Dompet', formatCurrencyStr(totalBalance)],
     ['Skor Kesehatan Finansial', `${healthScore}/100 (${healthStatus})`],
   ];

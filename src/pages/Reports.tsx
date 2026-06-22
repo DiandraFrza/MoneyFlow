@@ -22,12 +22,13 @@ export const Reports: React.FC = () => {
 
   // 1. Filtered Transactions based on Selected Period (June 2026)
   const filteredTransactions = useMemo(() => {
-    const today = new Date('2026-06-18T12:00:00'); // simulated date
+    const today = new Date();
     return transactions.filter(t => {
       const txDate = new Date(t.date + 'T12:00:00');
       
       if (reportPeriod === 'today') {
-        return t.date === '2026-06-18';
+        const todayStr = new Date().toISOString().split('T')[0];
+        return t.date === todayStr;
       }
       if (reportPeriod === 'week') {
         const diffTime = today.getTime() - txDate.getTime();
@@ -117,14 +118,16 @@ export const Reports: React.FC = () => {
     transactions
       .filter(t => {
         const txDate = new Date(t.date + 'T12:00:00');
-        // Filter transactions for June 2026
-        return txDate.getMonth() === 5 && txDate.getFullYear() === 2026 && (t.type === 'expense' || t.type === 'installment');
+        const today = new Date();
+        // Filter transactions for current month
+        return txDate.getMonth() === today.getMonth() && txDate.getFullYear() === today.getFullYear() && (t.type === 'expense' || t.type === 'installment');
       })
       .forEach(t => {
         if (t.category_id) spentMap[t.category_id] = (spentMap[t.category_id] || 0) + t.amount;
       });
 
-    const activeBudgets = budgets.filter(b => b.month === 6 && b.year === 2026);
+    const today = new Date();
+    const activeBudgets = budgets.filter(b => b.month === today.getMonth() + 1 && b.year === today.getFullYear());
     
     return activeBudgets.map(b => {
       const cat = categoryMap.get(b.category_id);

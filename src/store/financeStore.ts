@@ -64,7 +64,7 @@ interface FinanceState {
   clearNotifications: (userId: string) => Promise<void>;
 }
 
-export const useFinanceStore = create<FinanceState>((set, get) => ({
+export const useFinanceStore = create<FinanceState>((set) => ({
   wallets: [],
   transactions: [],
   transfers: [],

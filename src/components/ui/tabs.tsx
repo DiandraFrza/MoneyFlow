@@ -13,7 +13,12 @@ export const Tabs: React.FC<TabsProps> = ({ value, onValueChange, children, clas
     <div className={cn('w-full flex flex-col gap-4', className)}>
       {React.Children.map(children, (child) => {
         if (React.isValidElement(child)) {
-          return React.cloneElement(child as React.ReactElement<any>, { value, onValueChange });
+          const typedChild = child as React.ReactElement<any>;
+          return React.cloneElement(typedChild, {
+            value: typedChild.props.value !== undefined ? typedChild.props.value : value,
+            activeValue: value,
+            onValueChange
+          });
         }
         return child;
       })}

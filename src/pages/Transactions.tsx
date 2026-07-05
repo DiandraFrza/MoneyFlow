@@ -11,6 +11,8 @@ import {
   Search, Download, Trash2, Calendar, Eye, 
   ArrowUpRight, ArrowDownLeft, PiggyBank, Scale
 } from 'lucide-react';
+import { LazyViewport } from '../components/ui/lazy-viewport';
+
 
 export const Transactions: React.FC = () => {
   const { user } = useAuthStore();
@@ -58,7 +60,8 @@ export const Transactions: React.FC = () => {
       amount: tf.amount,
       description: `${tf.description || 'Transfer'} (Ke: ${walletMap.get(tf.to_wallet_id)?.name || '?'})`,
       date: tf.date,
-      created_at: tf.created_at
+      created_at: tf.created_at,
+      receipt_url: undefined
     }));
 
     let result = [...transactions, ...mappedTransfers];
@@ -279,73 +282,75 @@ export const Transactions: React.FC = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="flex flex-col gap-3">
-            {filteredAndSortedTransactions.map((tx) => {
-              const wallet = walletMap.get(tx.wallet_id);
-              const category = categoryMap.get(tx.category_id || '');
-              const subcat = subCategoryMap.get(tx.sub_category_id || '');
-              
-              return (
-                <div
-                  key={tx.id}
-                  className="p-4 rounded-xl border border-slate-200/60 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between gap-4 shadow-soft-sm hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-                >
-                  {/* Left Side: Type Icon, Category & Details */}
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="h-10 w-10 rounded-xl flex items-center justify-center text-white flex-shrink-0" 
-                      style={{ backgroundColor: category?.color || wallet?.color || '#2563EB' }}
-                    >
-                      {tx.type === 'income' && <ArrowUpRight className="h-5 w-5" />}
-                      {tx.type === 'expense' && <ArrowDownLeft className="h-5 w-5" />}
-                      {tx.type === 'savings' && <PiggyBank className="h-5 w-5" />}
-                      {tx.type === 'debt_payment' && <Scale className="h-5 w-5" />}
-                      {tx.type === 'installment' && <Calendar className="h-5 w-5" />}
-                      {(tx.type as any) === 'transfer' && <ArrowUpRight className="h-5 w-5" />}
-                    </div>
-                    
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-xs font-black truncate leading-none">
-                          {tx.description || category?.name || 'Catatan Kosong'}
-                        </h4>
-                        {tx.receipt_url && (
-                          <button
-                            onClick={() => setPreviewImage(tx.receipt_url!)}
-                            className="text-primary hover:text-primary-dark p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                          </button>
-                        )}
+          <LazyViewport height="300px" className="w-full">
+            <div className="flex flex-col gap-3">
+              {filteredAndSortedTransactions.map((tx) => {
+                const wallet = walletMap.get(tx.wallet_id);
+                const category = categoryMap.get(tx.category_id || '');
+                const subcat = subCategoryMap.get(tx.sub_category_id || '');
+                
+                return (
+                  <div
+                    key={tx.id}
+                    className="p-4 rounded-xl border border-slate-200/60 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between gap-4 shadow-soft-sm hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                  >
+                    {/* Left Side: Type Icon, Category & Details */}
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="h-10 w-10 rounded-xl flex items-center justify-center text-white flex-shrink-0" 
+                        style={{ backgroundColor: category?.color || wallet?.color || '#2563EB' }}
+                      >
+                        {tx.type === 'income' && <ArrowUpRight className="h-5 w-5" />}
+                        {tx.type === 'expense' && <ArrowDownLeft className="h-5 w-5" />}
+                        {tx.type === 'savings' && <PiggyBank className="h-5 w-5" />}
+                        {tx.type === 'debt_payment' && <Scale className="h-5 w-5" />}
+                        {tx.type === 'installment' && <Calendar className="h-5 w-5" />}
+                        {(tx.type as any) === 'transfer' && <ArrowUpRight className="h-5 w-5" />}
                       </div>
                       
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-[10px] text-text-mutedLight dark:text-text-mutedDark">
-                        <span className="font-semibold uppercase bg-slate-50 dark:bg-slate-800 px-1 py-0.5 rounded">{wallet?.name || 'Rekening'}</span>
-                        {category && <span>• {category.name}</span>}
-                        {subcat && <span>• {subcat.name}</span>}
-                        <span>• {new Date(tx.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-black truncate leading-none">
+                            {tx.description || category?.name || 'Catatan Kosong'}
+                          </h4>
+                          {tx.receipt_url && (
+                            <button
+                              onClick={() => setPreviewImage(tx.receipt_url!)}
+                              className="text-primary hover:text-primary-dark p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-[10px] text-text-mutedLight dark:text-text-mutedDark">
+                          <span className="font-semibold uppercase bg-slate-50 dark:bg-slate-800 px-1 py-0.5 rounded">{wallet?.name || 'Rekening'}</span>
+                          {category && <span>• {category.name}</span>}
+                          {subcat && <span>• {subcat.name}</span>}
+                          <span>• {new Date(tx.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Right Side: Amount & Delete Button */}
-                  <div className="flex items-center gap-4 flex-shrink-0">
-                    <h4 className={`text-sm font-black text-right ${
-                      tx.type === 'income' ? 'text-success' : 'text-danger'
-                    }`}>
-                      {tx.type === 'income' ? '+' : '-'} Rp{tx.amount.toLocaleString('id-ID')}
-                    </h4>
-                    
-                    <button
-                      onClick={() => handleDelete(tx.id)}
-                      className="p-2 rounded-xl bg-slate-50 hover:bg-red-50 text-text-mutedLight hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-950/20 dark:text-text-mutedDark transition-all btn-pressable"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {/* Right Side: Amount & Delete Button */}
+                    <div className="flex items-center gap-4 flex-shrink-0">
+                      <h4 className={`text-sm font-black text-right ${
+                        tx.type === 'income' ? 'text-success' : 'text-danger'
+                      }`}>
+                        {tx.type === 'income' ? '+' : '-'} Rp{tx.amount.toLocaleString('id-ID')}
+                      </h4>
+                      
+                      <button
+                        onClick={() => handleDelete(tx.id)}
+                        className="p-2 rounded-xl bg-slate-50 hover:bg-red-50 text-text-mutedLight hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-950/20 dark:text-text-mutedDark transition-all btn-pressable"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </LazyViewport>
         )}
       </div>
 

@@ -4,12 +4,12 @@ import React, { useState, useEffect } from "react";
 import { useFinanceStore } from "../../store/financeStore";
 import { useAuthStore } from "../../store/authStore";
 import { useModalStore } from "../../store/modalStore";
-import type { Budget, Category } from "../../types";
+import type { Budget } from "../../types";
 import { Dialog } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select } from "../ui/select";
-import { AlertTriangle, Save, Trash2 } from "lucide-react";
+import { AlertTriangle, Save } from "lucide-react";
 
 interface BudgetConfigModalProps {
   isOpen: boolean;
@@ -21,7 +21,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 
 export const BudgetConfigModal: React.FC<BudgetConfigModalProps> = ({ isOpen, budget }) => {
   const { user } = useAuthStore();
-  const { categories, setBudget, deleteBudget, budgets } = useFinanceStore();
+  const { categories, setBudget, deleteBudget } = useFinanceStore();
   const { mode, closeModal } = useModalStore();
 
   const [formData, setFormData] = useState({
@@ -125,14 +125,14 @@ export const BudgetConfigModal: React.FC<BudgetConfigModalProps> = ({ isOpen, bu
   const title = mode === "add" ? "Buat Anggaran Baru" : mode === "edit" ? "Edit Anggaran" : "Hapus Anggaran";
 
   return (
-    <Dialog open={isOpen} onOpenChange={closeModal}>
+    <Dialog isOpen={isOpen} onClose={closeModal} title={title}>
       <div className="w-full max-w-md p-6 bg-white dark:bg-slate-900 rounded-lg">
         <h2 className="text-lg font-bold mb-4">{title}</h2>
 
         {mode === "delete" ? (
           <div className="space-y-4">
             <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
-              <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
               <p className="text-sm text-red-800 dark:text-red-300">Apakah Anda yakin ingin menghapus anggaran ini?</p>
             </div>
 

@@ -1,7 +1,9 @@
-import { create } from 'zustand';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { db } from '../lib/repository';
-import type { UserProfile, UserSettings } from '../types';
+/** @format */
+
+import { create } from "zustand";
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import { db } from "../lib/repository";
+import type { UserProfile, UserSettings } from "../types";
 
 interface AuthState {
   user: UserProfile | null;
@@ -32,8 +34,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         console.log("[Auth] Supabase terkonfigurasi, mengecek session...");
 
         // 1. Check active session from Supabase
-        const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
-        
+        const {
+          data: { session },
+          error: sessionErr,
+        } = await supabase.auth.getSession();
+
         if (sessionErr) {
           console.error("[Auth] Error getSession:", sessionErr.message);
         }
@@ -42,11 +47,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           console.log("[Auth] ✅ Session aktif, user_id:", session.user.id);
           const profile = await db.profile.get(session.user.id);
           const settings = await db.settings.get(session.user.id);
-          set({ 
-            user: profile, 
+          set({
+            user: profile,
             settings: settings,
-            isLocal: false, 
-            loading: false 
+            isLocal: false,
+            loading: false,
           });
         } else {
           console.log("[Auth] ❌ Tidak ada session aktif, tampilkan halaman login");
@@ -54,19 +59,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
 
         // 2. Listen to auth state changes (for token refresh, etc.)
-        supabase.auth.onAuthStateChange(async (event, newSession) => {
+        supabase.auth.onAuthStateChange(async (event: any, newSession: any) => {
           console.log("[Auth] onAuthStateChange event:", event, "user:", newSession?.user?.id);
 
-          if (event === 'SIGNED_OUT') {
+          if (event === "SIGNED_OUT") {
             set({ user: null, settings: null, isLocal: false, loading: false });
             return;
           }
 
           if (newSession?.user) {
             // Hanya update jika user berubah atau ada SIGNED_IN event
-            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+            if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
               const currentUser = get().user;
-              if (!currentUser || currentUser.id !== newSession.user.id || event === 'USER_UPDATED') {
+              if (!currentUser || currentUser.id !== newSession.user.id || event === "USER_UPDATED") {
                 console.log("[Auth] Memperbarui user dari event:", event);
                 const p = await db.profile.get(newSession.user.id);
                 const s = await db.settings.get(newSession.user.id);
@@ -80,13 +85,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Supabase tidak terkonfigurasi → mode offline
       console.warn("[Auth] ⚠️ Supabase tidak terkonfigurasi, masuk mode offline");
-      const localProfile = await db.profile.get('local-user');
-      const localSettings = await db.settings.get('local-user');
-      set({ 
-        user: localProfile, 
+      const localProfile = await db.profile.get("local-user");
+      const localSettings = await db.settings.get("local-user");
+      set({
+        user: localProfile,
         settings: localSettings,
-        isLocal: true, 
-        loading: false 
+        isLocal: true,
+        loading: false,
       });
     } catch (err: any) {
       console.error("[Auth] Error initialize:", err.message);
@@ -97,22 +102,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (email, password) => {
     set({ loading: true, error: null });
     try {
+      if (!email && !password) {
+        console.warn("[Auth] Login mode lokal/guest dipilih");
+        const localProfile = await db.profile.get("local-user");
+        const localSettings = await db.settings.get("local-user");
+        set({ user: localProfile, settings: localSettings, isLocal: true, loading: false });
+        return true;
+      }
+
       if (!isSupabaseConfigured) {
         console.warn("[Auth] Login offline (Supabase tidak terkonfigurasi)");
-        const localProfile = await db.profile.get('local-user');
-        const localSettings = await db.settings.get('local-user');
-        set({ 
-          user: localProfile, 
-          settings: localSettings, 
-          isLocal: true, 
-          loading: false 
+        const localProfile = await db.profile.get("local-user");
+        const localSettings = await db.settings.get("local-user");
+        set({
+          user: localProfile,
+          settings: localSettings,
+          isLocal: true,
+          loading: false,
         });
         return true;
       }
 
       console.log("[Auth] Login Supabase, email:", email);
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      
+
       if (error) {
         console.error("[Auth] Login error:", error.message);
         throw error;
@@ -122,11 +135,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         console.log("[Auth] ✅ Login berhasil, user_id:", data.user.id);
         const profile = await db.profile.get(data.user.id);
         const settings = await db.settings.get(data.user.id);
-        set({ 
-          user: profile, 
-          settings: settings, 
-          isLocal: false, 
-          loading: false 
+        set({
+          user: profile,
+          settings: settings,
+          isLocal: false,
+          loading: false,
         });
         return true;
       }
@@ -142,7 +155,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       if (!isSupabaseConfigured) {
-        set({ error: 'Supabase tidak terkonfigurasi. Tidak dapat mendaftar online.', loading: false });
+        set({ error: "Supabase tidak terkonfigurasi. Tidak dapat mendaftar online.", loading: false });
         return false;
       }
 
@@ -151,26 +164,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         email,
         password,
         options: {
-          data: { name }
-        }
+          data: { name },
+        },
       });
 
       if (error) {
         console.error("[Auth] Registrasi error:", error.message);
         throw error;
       }
-      
+
       if (data.user) {
         console.log("[Auth] ✅ Registrasi berhasil, user_id:", data.user.id);
         // Tunggu sebentar agar trigger Supabase berjalan (jika ada)
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, 1500));
         const profile = await db.profile.get(data.user.id);
         const settings = await db.settings.get(data.user.id);
-        set({ 
-          user: profile, 
-          settings: settings, 
-          isLocal: false, 
-          loading: false 
+        set({
+          user: profile,
+          settings: settings,
+          isLocal: false,
+          loading: false,
         });
         return true;
       }
@@ -186,7 +199,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   forgotPassword: async (email) => {
     try {
       if (!isSupabaseConfigured) {
-        throw new Error('Supabase tidak terkonfigurasi.');
+        throw new Error("Supabase tidak terkonfigurasi.");
       }
       console.log("[Auth] Reset password untuk:", email);
       const { error } = await supabase.auth.resetPasswordForEmail(email);
@@ -207,12 +220,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         await supabase.auth.signOut();
         console.log("[Auth] ✅ Logout Supabase berhasil");
       }
-      
-      set({ 
-        user: null, 
-        settings: null, 
-        isLocal: false, 
-        loading: false 
+
+      set({
+        user: null,
+        settings: null,
+        isLocal: false,
+        loading: false,
       });
     } catch (err: any) {
       console.error("[Auth] Logout error:", err.message);
@@ -245,5 +258,5 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.error("[Auth] Update settings error:", err.message);
       set({ error: err.message });
     }
-  }
+  },
 }));

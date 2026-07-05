@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FileText, Plus, BarChart3, Settings, Bell, Sun, Moon, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, FileText, Plus, BarChart3, Settings, Bell, LogOut, Menu, X, Wallet } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 import { useFinanceStore } from "../../store/financeStore";
 import { QuickAddModal } from "../transactions/QuickAddModal";
@@ -16,7 +16,7 @@ interface AppLayoutProps {
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout, settings, updateSettings } = useAuthStore();
+  const { user, logout, settings } = useAuthStore();
   const { notifications, readAllNotifications } = useFinanceStore();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
@@ -36,12 +36,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       document.documentElement.classList.remove("dark");
     }
   }, [settings?.theme]);
-
-  const toggleTheme = () => {
-    if (!user) return;
-    const newTheme = settings?.theme === "dark" ? "light" : "dark";
-    updateSettings({ theme: newTheme });
-  };
 
   const navItems = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
@@ -75,7 +69,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         <div className="flex flex-col gap-8">
           {/* Logo */}
           <div className="flex items-center gap-3 px-3">
-            <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-soft font-black text-xl">M</div>
+            <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-soft">
+              <Wallet className="h-5.5 w-5.5" />
+            </div>
             <div>
               <h1 className="font-bold text-base leading-none">MoneyFlow Pro</h1>
               <span className="text-xs text-text-mutedLight dark:text-text-mutedDark">Asisten Keuangan Anda</span>
@@ -130,7 +126,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             <div className="flex flex-col gap-8">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-sm">M</div>
+                  <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-white">
+                    <Wallet className="h-4 w-4" />
+                  </div>
                   <span className="font-bold text-sm">MoneyFlow Pro</span>
                 </div>
                 <button onClick={() => setIsSidebarOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
@@ -178,7 +176,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               <Menu className="h-5 w-5" />
             </button>
             <h2 className="font-bold text-base md:text-lg hidden sm:block">{currentPath === "/" ? "Dashboard" : currentPath === "/transactions" ? "Daftar Transaksi" : currentPath === "/reports" ? "Analisis Keuangan" : currentPath === "/settings" ? "Pengaturan" : "Aplikasi"}</h2>
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-white font-black text-sm sm:hidden">M</div>
+            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-white sm:hidden">
+              <Wallet className="h-4 w-4" />
+            </div>
           </div>
 
           {/* Quick Stats / Controls */}

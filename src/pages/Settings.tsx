@@ -1,6 +1,6 @@
 /** @format */
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuthStore } from "../store/authStore";
 import { useFinanceStore } from "../store/financeStore";
 import { useModalStore } from "../store/modalStore";
@@ -13,10 +13,13 @@ import { User, Wallet as WalletIcon, Scale, Calendar, Plus, Trash2, PiggyBank, C
 
 export const Settings: React.FC = () => {
   const { user, updateProfile } = useAuthStore();
-  const { wallets, categories, budgets, debts, recurring, addWallet, deleteWallet, setBudget, addDebt, updateDebt, deleteDebt, addRecurring, deleteRecurring } = useFinanceStore();
+  const { wallets, categories, budgets, debts, recurring, addWallet, setBudget, addDebt, updateDebt, addRecurring } = useFinanceStore();
   const { openWalletModal, openBudgetModal, openDebtModal, openRecurringModal, openProfileModal } = useModalStore();
 
   const [activeTab, setActiveTab] = useState("profile");
+  const currentMonth = new Date().getMonth() + 1;
+  const currentYear = new Date().getFullYear();
+  const currentMonthLabel = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(new Date());
 
   // Helper formatting currency
   const formatCurrency = (amount: number): string => {
@@ -30,6 +33,12 @@ export const Settings: React.FC = () => {
   const [profileSalary, setProfileSalary] = useState(user?.monthly_salary?.toString() || "0");
   const [profileTarget, setProfileTarget] = useState(user?.financial_target?.toString() || "0");
   const [profileSuccess, setProfileSuccess] = useState("");
+
+  useEffect(() => {
+    setProfileName(user?.name || "");
+    setProfileSalary(user?.monthly_salary?.toString() || "0");
+    setProfileTarget(user?.financial_target?.toString() || "0");
+  }, [user]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,12 +84,7 @@ export const Settings: React.FC = () => {
     setNewWalletNotes("");
   };
 
-  const handleDeleteWallet = async (id: string) => {
-    if (!user) return;
-    if (window.confirm("Hapus dompet ini? Semua transaksi yang terhubung dengan dompet ini juga akan terpengaruh.")) {
-      await deleteWallet(user.id, id);
-    }
-  };
+
 
   // -------------------------------------------------------------------------
   // 3. Budgeting State & Actions
@@ -89,25 +93,35 @@ export const Settings: React.FC = () => {
   const [budgetValues, setBudgetValues] = useState<Record<string, string>>(() => {
     const vals: Record<string, string> = {};
     budgets.forEach((b) => {
-      if (b.month === 6 && b.year === 2026) {
+      if (b.month === currentMonth && b.year === currentYear) {
         vals[b.category_id] = b.amount.toString();
       }
     });
     return vals;
   });
+
+  useEffect(() => {
+    const vals: Record<string, string> = {};
+    budgets.forEach((b) => {
+      if (b.month === currentMonth && b.year === currentYear) {
+        vals[b.category_id] = b.amount.toString();
+      }
+    });
+    setBudgetValues((prev) => (Object.keys(prev).length === 0 ? vals : prev));
+  }, [budgets, currentMonth, currentYear]);
   const [budgetSuccess, setBudgetSuccess] = useState("");
 
   const handleSaveBudgets = async () => {
     if (!user) return;
     setBudgetSuccess("");
 
-    for (const catId of Object.keys(budgetValues)) {
+    for (const catId of expenseCategories.map((cat) => cat.id)) {
       const amount = parseFloat(budgetValues[catId]) || 0;
       await setBudget(user.id, {
         category_id: catId,
         amount: amount,
-        month: 6,
-        year: 2026,
+        month: currentMonth,
+        year: currentYear,
       });
     }
 
@@ -158,12 +172,7 @@ export const Settings: React.FC = () => {
     });
   };
 
-  const handleDeleteDebt = async (id: string) => {
-    if (!user) return;
-    if (window.confirm("Hapus catatan utang/piutang ini?")) {
-      await deleteDebt(user.id, id);
-    }
-  };
+
 
   // -------------------------------------------------------------------------
   // 5. Recurring State & Actions
@@ -203,12 +212,7 @@ export const Settings: React.FC = () => {
     setRecAmount("");
   };
 
-  const handleDeleteRec = async (id: string) => {
-    if (!user) return;
-    if (window.confirm("Hapus transaksi rutin ini?")) {
-      await deleteRecurring(user.id, id);
-    }
-  };
+
 
   return (
     <div className="flex flex-col gap-6">
@@ -406,7 +410,7 @@ export const Settings: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center justify-between">
-                <span>Atur Batas Anggaran Bulanan (Juni 2026)</span>
+                <span>Atur Batas Anggaran Bulanan ({currentMonthLabel})</span>
                 <Button onClick={() => openBudgetModal("add")} className="h-9 text-xs">
                   <Plus className="h-4 w-4 mr-1" />
                   Tambah Budget

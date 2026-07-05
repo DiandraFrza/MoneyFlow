@@ -1,15 +1,26 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, Suspense } from 'react';
 import { useFinanceStore } from '../store/financeStore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Select } from '../components/ui/select';
+import { LazyViewport } from '../components/ui/lazy-viewport';
 
 import { 
   TrendingUp, TrendingDown, Scale, BarChart3
 } from 'lucide-react';
-import { 
-  ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, BarChart, Bar
-} from 'recharts';
+
+const LazyCashFlowComparisonChart = React.lazy(() =>
+  import("../components/reports/ReportsCharts").then((m) => ({ default: m.CashFlowComparisonChart }))
+);
+const LazyBudgetPerformanceChart = React.lazy(() =>
+  import("../components/reports/ReportsCharts").then((m) => ({ default: m.BudgetPerformanceChart }))
+);
+const LazyExpensePropChart = React.lazy(() =>
+  import("../components/reports/ReportsCharts").then((m) => ({ default: m.ExpensePropChart }))
+);
+const LazyIncomePropChart = React.lazy(() =>
+  import("../components/reports/ReportsCharts").then((m) => ({ default: m.IncomePropChart }))
+);
+
 
 export const Reports: React.FC = () => {
   const { transactions, budgets, categories } = useFinanceStore();
@@ -142,29 +153,76 @@ export const Reports: React.FC = () => {
   // 6. Cash Flow Trend for Selected Scope
   const trendData = useMemo(() => {
     const dataPoints: Record<string, { name: string; Pemasukan: number; Pengeluaran: number }> = {};
-    
+    const today = new Date();
+
+    if (reportPeriod === 'today') {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      const todayStr = today.toISOString().split('T')[0];
+      
+      dataPoints[yesterdayStr] = { name: 'Kemarin', Pemasukan: 0, Pengeluaran: 0 };
+      dataPoints[todayStr] = { name: 'Hari Ini', Pemasukan: 0, Pengeluaran: 0 };
+    }
+    else if (reportPeriod === 'week') {
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        const label = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+        dataPoints[dateStr] = { name: label, Pemasukan: 0, Pengeluaran: 0 };
+      }
+    }
+    else if (reportPeriod === 'month') {
+      const year = today.getFullYear();
+      const month = today.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      
+      for (let i = 1; i <= daysInMonth; i++) {
+        const d = new Date(year, month, i);
+        const dateStr = d.toISOString().split('T')[0];
+        const label = `${i}`;
+        dataPoints[dateStr] = { name: label, Pemasukan: 0, Pengeluaran: 0 };
+      }
+    }
+    else if (reportPeriod === 'year') {
+      const year = today.getFullYear();
+      for (let m = 0; m < 12; m++) {
+        const label = new Date(year, m, 1).toLocaleDateString('id-ID', { month: 'short' });
+        const key = `${year}-${m + 1}`;
+        dataPoints[key] = { name: label, Pemasukan: 0, Pengeluaran: 0 };
+      }
+    }
+
     filteredTransactions.forEach(t => {
       const txDate = new Date(t.date + 'T12:00:00');
       let key = t.date;
-      let label = txDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
       
       if (reportPeriod === 'year') {
         key = `${txDate.getFullYear()}-${txDate.getMonth() + 1}`;
-        label = txDate.toLocaleDateString('id-ID', { month: 'long' });
       }
 
-      if (!dataPoints[key]) {
-        dataPoints[key] = { name: label, Pemasukan: 0, Pengeluaran: 0 };
-      }
-
-      if (t.type === 'income') {
-        dataPoints[key].Pemasukan += t.amount;
-      } else if (t.type === 'expense' || t.type === 'installment') {
-        dataPoints[key].Pengeluaran += t.amount;
+      if (dataPoints[key]) {
+        if (t.type === 'income') {
+          dataPoints[key].Pemasukan += t.amount;
+        } else if (t.type === 'expense' || t.type === 'installment') {
+          dataPoints[key].Pengeluaran += t.amount;
+        }
+      } else {
+        const label = txDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+        const val = { name: label, Pemasukan: 0, Pengeluaran: 0 };
+        if (t.type === 'income') {
+          val.Pemasukan = t.amount;
+        } else if (t.type === 'expense' || t.type === 'installment') {
+          val.Pengeluaran = t.amount;
+        }
+        dataPoints[key] = val;
       }
     });
 
-    return Object.values(dataPoints).sort(() => 1);
+    return Object.keys(dataPoints)
+      .sort()
+      .map(key => dataPoints[key]);
   }, [filteredTransactions, reportPeriod]);
 
   return (
@@ -187,8 +245,8 @@ export const Reports: React.FC = () => {
               options={[
                 { value: 'today', label: 'Hari Ini' },
                 { value: 'week', label: '7 Hari Terakhir' },
-                { value: 'month', label: 'Bulan Ini (Juni)' },
-                { value: 'year', label: 'Tahun Ini (2026)' }
+                { value: 'month', label: `Bulan Ini (${new Intl.DateTimeFormat("id-ID", { month: "long" }).format(new Date())})` },
+                { value: 'year', label: `Tahun Ini (${new Date().getFullYear()})` }
               ]}
             />
           </div>
@@ -241,182 +299,96 @@ export const Reports: React.FC = () => {
       {/* ---------------------------------------------------------------------
           TREND & BUDGET PERFORMANCE CHARTS
           --------------------------------------------------------------------- */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Cash flow trends */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Perbandingan Arus Kas
-            </CardTitle>
-            <CardDescription>Pemasukan vs pengeluaran dalam grafik visual</CardDescription>
-          </CardHeader>
-          <CardContent className="h-72">
-            {trendData.length === 0 ? (
-              <p className="text-xs text-center text-text-mutedLight py-20">Tidak ada data tren pada periode ini.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorInc2" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.15}/>
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorExp2" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#EF4444" stopOpacity={0.15}/>
-                      <stop offset="95%" stopColor="#EF4444" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                  <XAxis dataKey="name" stroke="#94A3B8" fontSize={9} tickLine={false} />
-                  <YAxis stroke="#94A3B8" fontSize={9} tickLine={false} axisLine={false} />
-                  <Tooltip formatter={(value) => [`Rp ${Number(value).toLocaleString('id-ID')}`]} />
-                  <Legend wrapperStyle={{ fontSize: 10, fontWeight: 'bold' }} />
-                  <Area type="monotone" dataKey="Pemasukan" stroke="#10B981" strokeWidth={1.5} fillOpacity={1} fill="url(#colorInc2)" />
-                  <Area type="monotone" dataKey="Pengeluaran" stroke="#EF4444" strokeWidth={1.5} fillOpacity={1} fill="url(#colorExp2)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+      <LazyViewport height="280px" className="w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Cash flow trends */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Perbandingan Arus Kas
+              </CardTitle>
+              <CardDescription>Pemasukan vs pengeluaran dalam grafik visual</CardDescription>
+            </CardHeader>
+            <CardContent className="h-72">
+              {trendData.length === 0 ? (
+                <p className="text-xs text-center text-text-mutedLight py-20">Tidak ada data tren pada periode ini.</p>
+              ) : (
+                <Suspense fallback={<div className="w-full h-full bg-slate-100/50 dark:bg-slate-800/40 rounded-2xl animate-pulse" />}>
+                  <LazyCashFlowComparisonChart data={trendData} />
+                </Suspense>
+              )}
+            </CardContent>
+          </Card>
 
-        {/* Budget Performance */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Scale className="h-5 w-5 text-warning" />
-              Realisasi Anggaran vs Limit (Bulan Ini)
-            </CardTitle>
-            <CardDescription>Mendeteksi kepatuhan batas belanja kategori</CardDescription>
-          </CardHeader>
-          <CardContent className="h-72">
-            {budgetPerformanceData.length === 0 ? (
-              <p className="text-xs text-center text-text-mutedLight py-20">Belum ada data anggaran yang dibuat.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={budgetPerformanceData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                  <XAxis dataKey="name" stroke="#94A3B8" fontSize={9} tickLine={false} />
-                  <YAxis stroke="#94A3B8" fontSize={9} tickLine={false} axisLine={false} />
-                  <Tooltip formatter={(value) => [`Rp ${Number(value).toLocaleString('id-ID')}`]} />
-                  <Legend wrapperStyle={{ fontSize: 10, fontWeight: 'bold' }} />
-                  <Bar dataKey="Limit Anggaran" fill="#cbd5e1" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Terpakai" fill="#2563EB" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+          {/* Budget Performance */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Scale className="h-5 w-5 text-warning" />
+                Realisasi Anggaran vs Limit (Bulan Ini)
+              </CardTitle>
+              <CardDescription>Mendeteksi kepatuhan batas belanja kategori</CardDescription>
+            </CardHeader>
+            <CardContent className="h-72">
+              {budgetPerformanceData.length === 0 ? (
+                <p className="text-xs text-center text-text-mutedLight py-20">Belum ada data anggaran yang dibuat.</p>
+              ) : (
+                <Suspense fallback={<div className="w-full h-full bg-slate-100/50 dark:bg-slate-800/40 rounded-2xl animate-pulse" />}>
+                  <LazyBudgetPerformanceChart data={budgetPerformanceData} />
+                </Suspense>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </LazyViewport>
 
       {/* ---------------------------------------------------------------------
           DISTRIBUTIONS (INCOME VS EXPENSE)
           --------------------------------------------------------------------- */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Expense distribution donut */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <TrendingDown className="h-5 w-5 text-danger" />
-              Proporsi Pengeluaran
-            </CardTitle>
-            <CardDescription>Porsi belanja per kategori pilihan</CardDescription>
-          </CardHeader>
-          <CardContent className="h-70 flex flex-col sm:flex-row items-center gap-4">
-            {expenseChartData.length === 0 ? (
-              <p className="text-xs text-center text-text-mutedLight py-12 flex-1">Tidak ada data belanja.</p>
-            ) : (
-              <>
-                <div className="h-44 w-44 flex-shrink-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={expenseChartData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={70}
-                        paddingAngle={3}
-                        dataKey="value"
-                      >
-                        {expenseChartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => [`Rp ${Number(value).toLocaleString('id-ID')}`]} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                
-                <div className="flex flex-col gap-2 max-h-48 overflow-y-auto flex-1 w-full text-xs">
-                  {expenseChartData.map((item) => (
-                    <div key={item.name} className="flex items-center justify-between p-1 hover:bg-slate-50 dark:hover:bg-slate-800/20 rounded">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                        <span className="font-semibold">{item.name}</span>
-                      </div>
-                      <span className="font-bold">{formatCurrency(item.value)} ({Math.round((item.value / totalExpense) * 100)}%)</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+      <LazyViewport height="280px" className="w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Expense distribution donut */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingDown className="h-5 w-5 text-danger" />
+                Proporsi Pengeluaran
+              </CardTitle>
+              <CardDescription>Porsi belanja per kategori pilihan</CardDescription>
+            </CardHeader>
+            <CardContent className="h-70 flex flex-col sm:flex-row items-center gap-4">
+              {expenseChartData.length === 0 ? (
+                <p className="text-xs text-center text-text-mutedLight py-12 flex-1">Tidak ada data belanja.</p>
+              ) : (
+                <Suspense fallback={<div className="w-full h-full bg-slate-100/50 dark:bg-slate-800/40 rounded-2xl animate-pulse" />}>
+                  <LazyExpensePropChart data={expenseChartData} totalExpense={totalExpense} />
+                </Suspense>
+              )}
+            </CardContent>
+          </Card>
 
-        {/* Income distribution donut */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-success" />
-              Proporsi Pendapatan
-            </CardTitle>
-            <CardDescription>Porsi pemasukan per kategori pilihan</CardDescription>
-          </CardHeader>
-          <CardContent className="h-70 flex flex-col sm:flex-row items-center gap-4">
-            {incomeChartData.length === 0 ? (
-              <p className="text-xs text-center text-text-mutedLight py-12 flex-1">Tidak ada data pemasukan.</p>
-            ) : (
-              <>
-                <div className="h-44 w-44 flex-shrink-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={incomeChartData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={70}
-                        paddingAngle={3}
-                        dataKey="value"
-                      >
-                        {incomeChartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => [`Rp ${Number(value).toLocaleString('id-ID')}`]} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                
-                <div className="flex flex-col gap-2 max-h-48 overflow-y-auto flex-1 w-full text-xs">
-                  {incomeChartData.map((item) => (
-                    <div key={item.name} className="flex items-center justify-between p-1 hover:bg-slate-50 dark:hover:bg-slate-800/20 rounded">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                        <span className="font-semibold">{item.name}</span>
-                      </div>
-                      <span className="font-bold">{formatCurrency(item.value)} ({Math.round((item.value / totalIncome) * 100)}%)</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-      </div>
+          {/* Income distribution donut */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-success" />
+                Proporsi Pendapatan
+              </CardTitle>
+              <CardDescription>Porsi pemasukan per kategori pilihan</CardDescription>
+            </CardHeader>
+            <CardContent className="h-70 flex flex-col sm:flex-row items-center gap-4">
+              {incomeChartData.length === 0 ? (
+                <p className="text-xs text-center text-text-mutedLight py-12 flex-1">Tidak ada data pemasukan.</p>
+              ) : (
+                <Suspense fallback={<div className="w-full h-full bg-slate-100/50 dark:bg-slate-800/40 rounded-2xl animate-pulse" />}>
+                  <LazyIncomePropChart data={incomeChartData} totalIncome={totalIncome} />
+                </Suspense>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </LazyViewport>
 
     </div>
   );

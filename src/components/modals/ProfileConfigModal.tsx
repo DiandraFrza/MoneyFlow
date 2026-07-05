@@ -76,7 +76,7 @@ export const ProfileConfigModal: React.FC<ProfileConfigModalProps> = ({ isOpen }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={closeModal}>
+    <Dialog isOpen={isOpen} onClose={closeModal} title="Edit Profil">
       <div className="w-full max-w-md p-6 bg-white dark:bg-slate-900 rounded-lg">
         <h2 className="text-lg font-bold mb-4">Edit Profil</h2>
 
@@ -84,7 +84,7 @@ export const ProfileConfigModal: React.FC<ProfileConfigModalProps> = ({ isOpen }
           <div className="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg text-xs text-blue-800 dark:text-blue-200 mb-2 leading-relaxed">
             Data profil ini digunakan untuk menghitung <b>Skor Kesehatan Finansial</b> Anda dan memberikan rekomendasi yang dipersonalisasi.
           </div>
-          
+
           <Input label="Nama Lengkap" placeholder="Nama Anda" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
 
           <Input label="Mata Uang" placeholder="Rp" value={formData.currency} onChange={(e) => setFormData({ ...formData, currency: e.target.value })} />

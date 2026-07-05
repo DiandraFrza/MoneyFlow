@@ -1,17 +1,24 @@
 /** @format */
 
-import React, { useEffect, useCallback } from "react";
+import React, { useEffect, useCallback, Suspense } from "react";
 import { HashRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./store/authStore";
 import { useFinanceStore } from "./store/financeStore";
 import { useModalStore } from "./store/modalStore";
 import { AppLayout } from "./components/layout/AppLayout";
-import { Auth } from "./pages/Auth";
-import { Dashboard } from "./pages/Dashboard";
-import { Transactions } from "./pages/Transactions";
-import { Reports } from "./pages/Reports";
-import { Settings } from "./pages/Settings";
-import { WalletConfigModal, BudgetConfigModal, DebtConfigModal, RecurringConfigModal, ProfileConfigModal } from "./components/modals";
+import { Wallet } from "lucide-react";
+const Auth = React.lazy(() => import("./pages/Auth").then((m) => ({ default: m.Auth })));
+const Dashboard = React.lazy(() => import("./pages/Dashboard").then((m) => ({ default: m.Dashboard })));
+const Transactions = React.lazy(() => import("./pages/Transactions").then((m) => ({ default: m.Transactions })));
+const Reports = React.lazy(() => import("./pages/Reports").then((m) => ({ default: m.Reports })));
+const Settings = React.lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
+
+const WalletConfigModal = React.lazy(() => import("./components/modals/WalletConfigModal").then((m) => ({ default: m.WalletConfigModal })));
+const BudgetConfigModal = React.lazy(() => import("./components/modals/BudgetConfigModal").then((m) => ({ default: m.BudgetConfigModal })));
+const DebtConfigModal = React.lazy(() => import("./components/modals/DebtConfigModal").then((m) => ({ default: m.DebtConfigModal })));
+const RecurringConfigModal = React.lazy(() => import("./components/modals/RecurringConfigModal").then((m) => ({ default: m.RecurringConfigModal })));
+const ProfileConfigModal = React.lazy(() => import("./components/modals/ProfileConfigModal").then((m) => ({ default: m.ProfileConfigModal })));
+
 
 // ============================================================
 // LOADING SCREEN COMPONENT
@@ -20,8 +27,8 @@ const LoadingScreen: React.FC<{ message?: string }> = ({ message = "Menyiapkan M
   <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col items-center justify-center gap-5">
     {/* Animated Logo */}
     <div className="relative">
-      <div className="h-20 w-20 rounded-2xl bg-primary flex items-center justify-center text-white font-black text-4xl shadow-lg">
-        M
+      <div className="h-20 w-20 rounded-2xl bg-primary flex items-center justify-center text-white shadow-lg">
+        <Wallet className="h-10 w-10" />
       </div>
       <div className="absolute -inset-2 rounded-3xl border-4 border-primary/20 animate-ping" />
     </div>
@@ -38,6 +45,15 @@ export const App: React.FC = () => {
   const { user, initialize, loading: authLoading } = useAuthStore();
   const { fetchData, loading: financeLoading, wallets, budgets, debts, recurring, lastFetchedUserId } = useFinanceStore();
   const { activeModal, selectedId } = useModalStore();
+
+  // State to track which modals have been opened at least once to handle lazy loading + exit animations
+  const [openedModals, setOpenedModals] = React.useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (activeModal) {
+      setOpenedModals((prev) => ({ ...prev, [activeModal]: true }));
+    }
+  }, [activeModal]);
 
   // 1. Initialize Auth ONCE on mount — wait for session check before rendering anything
   useEffect(() => {
@@ -67,7 +83,11 @@ export const App: React.FC = () => {
 
   // ── PHASE 2: Belum login ──
   if (!user) {
-    return <Auth />;
+    return (
+      <Suspense fallback={<LoadingScreen message="Menyiapkan layar login..." />}>
+        <Auth />
+      </Suspense>
+    );
   }
 
   // ── PHASE 3: Sudah login, data keuangan masih diambil ──
@@ -90,23 +110,37 @@ export const App: React.FC = () => {
             </div>
           </div>
         ) : (
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/transactions" element={<Transactions />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/settings" element={<Settings />} />
-            {/* Catch all redirect to root */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <Suspense fallback={<LoadingScreen message="Memuat halaman..." />}>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/transactions" element={<Transactions />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/settings" element={<Settings />} />
+              {/* Catch all redirect to root */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
         )}
       </AppLayout>
 
       {/* Global Modal System */}
-      <WalletConfigModal isOpen={activeModal === "wallet"} wallet={selectedId ? wallets.find((w) => w.id === selectedId) : undefined} />
-      <BudgetConfigModal isOpen={activeModal === "budget"} budget={selectedId ? budgets.find((b) => b.id === selectedId) : undefined} />
-      <DebtConfigModal isOpen={activeModal === "debt"} debt={selectedId ? debts.find((d) => d.id === selectedId) : undefined} />
-      <RecurringConfigModal isOpen={activeModal === "recurring"} recurring={selectedId ? recurring.find((r) => r.id === selectedId) : undefined} />
-      <ProfileConfigModal isOpen={activeModal === "profile"} />
+      <Suspense fallback={null}>
+        {openedModals["wallet"] && (
+          <WalletConfigModal isOpen={activeModal === "wallet"} wallet={selectedId ? wallets.find((w) => w.id === selectedId) : undefined} />
+        )}
+        {openedModals["budget"] && (
+          <BudgetConfigModal isOpen={activeModal === "budget"} budget={selectedId ? budgets.find((b) => b.id === selectedId) : undefined} />
+        )}
+        {openedModals["debt"] && (
+          <DebtConfigModal isOpen={activeModal === "debt"} debt={selectedId ? debts.find((d) => d.id === selectedId) : undefined} />
+        )}
+        {openedModals["recurring"] && (
+          <RecurringConfigModal isOpen={activeModal === "recurring"} recurring={selectedId ? recurring.find((r) => r.id === selectedId) : undefined} />
+        )}
+        {openedModals["profile"] && (
+          <ProfileConfigModal isOpen={activeModal === "profile"} />
+        )}
+      </Suspense>
     </Router>
   );
 };

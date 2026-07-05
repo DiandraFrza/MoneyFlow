@@ -37,66 +37,68 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose })
 
   // Filter wallets and categories based on active selections
   // Deduplicate wallets by name to prevent double-seeding issues in UI
-  const activeWallets = wallets.reduce((acc, current) => {
-    const x = acc.find(item => item.name === current.name);
-    if (!x) {
-      return acc.concat([current]);
-    } else {
-      // If duplicate, keep the one with larger balance
-      if (Math.abs(current.balance) > Math.abs(x.balance)) {
-        return acc.map(item => item.name === current.name ? current : item);
+  const activeWallets = wallets.reduce(
+    (acc, current) => {
+      const x = acc.find((item) => item.name === current.name);
+      if (!x) {
+        return acc.concat([current]);
+      } else {
+        // If duplicate, keep the one with larger balance
+        if (Math.abs(current.balance) > Math.abs(x.balance)) {
+          return acc.map((item) => (item.name === current.name ? current : item));
+        }
+        return acc;
       }
-      return acc;
-    }
-  }, [] as typeof wallets);
+    },
+    [] as typeof wallets,
+  );
   const filteredCategories = categories.filter((c) => c.type === (type === "income" ? "income" : "expense"));
   const filteredSubCategories = subcategories.filter((sc) => sc.category_id === categoryId);
 
   // Set default form values when opening
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+
+    const frame = window.requestAnimationFrame(() => {
       setType("expense");
       setAmount("");
       setDescription("");
       setReceiptUrl("");
       setError("");
-      setDate(new Date().toISOString().split("T")[0]); // reset ke tanggal hari ini
+      setDate(new Date().toISOString().split("T")[0]);
 
       if (wallets.length > 0) {
         setWalletId(wallets[0].id);
-        if (wallets.length > 1) {
-          setTransferWalletId(wallets[1].id);
-        } else {
-          setTransferWalletId(wallets[0].id);
-        }
+        setTransferWalletId(wallets.length > 1 ? wallets[1].id : wallets[0].id);
+      } else {
+        setWalletId("");
+        setTransferWalletId("");
       }
 
-      // Auto focus on amount field (mobile keyboard triggers immediately!)
-      setTimeout(() => {
+      const defaultCats = categories.filter((c) => c.type === "expense");
+      setCategoryId(defaultCats[0]?.id ?? "");
+      setSubCategoryId("");
+
+      window.setTimeout(() => {
         amountRef.current?.focus();
       }, 250);
-    }
-  }, [isOpen, wallets]);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isOpen, wallets, categories]);
 
   // Adjust categories when type changes
   useEffect(() => {
-    const defaultCats = categories.filter((c) => c.type === (type === "income" ? "income" : "expense"));
-    if (defaultCats.length > 0) {
-      setCategoryId(defaultCats[0].id);
-    } else {
-      setCategoryId("");
-    }
-  }, [type, categories]);
+    if (!isOpen) return;
 
-  // Adjust subcategories when category changes
-  useEffect(() => {
-    const defaultSubs = subcategories.filter((sc) => sc.category_id === categoryId);
-    if (defaultSubs.length > 0) {
-      setSubCategoryId(defaultSubs[0].id);
-    } else {
+    const frame = window.requestAnimationFrame(() => {
+      const defaultCats = categories.filter((c) => c.type === (type === "income" ? "income" : "expense"));
+      setCategoryId(defaultCats[0]?.id ?? "");
       setSubCategoryId("");
-    }
-  }, [categoryId, subcategories]);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [type, categories, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,16 +118,24 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose })
       return;
     }
 
-    if (type !== "transfer" && type !== "savings" && type !== "debt_payment" && (!categoryId || !subCategoryId)) {
-      setError("Pilih kategori dan subkategori transaksi.");
-      return;
+    if (type !== "transfer" && type !== "savings" && type !== "debt_payment") {
+      if (!categoryId) {
+        setError("Pilih kategori transaksi.");
+        return;
+      }
+
+      // Jika kategori memiliki subkategori, pastikan user memilih salah satu.
+      if (filteredSubCategories.length > 0 && !subCategoryId) {
+        setError("Pilih subkategori transaksi.");
+        return;
+      }
     }
 
     setLoading(true);
     setError("");
 
     try {
-      if ((type as any) === "transfer") {
+      if (type === "transfer") {
         if (walletId === transferWalletId) {
           setError("Dompet asal dan tujuan tidak boleh sama.");
           setLoading(false);
@@ -141,8 +151,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose })
       } else {
         await addTransaction(user.id, {
           wallet_id: walletId,
-          category_id: type === "savings" || type === "debt_payment" ? null : (categoryId || null),
-          sub_category_id: type === "savings" || type === "debt_payment" ? null : (subCategoryId || null),
+          category_id: type === "savings" || type === "debt_payment" ? null : categoryId || null,
+          sub_category_id: type === "savings" || type === "debt_payment" ? null : subCategoryId || null,
           type: type,
           amount: parsedAmount,
           description: description,
@@ -151,8 +161,9 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose })
         });
       }
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Terjadi kesalahan saat menyimpan transaksi.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Terjadi kesalahan saat menyimpan transaksi.";
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -189,7 +200,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose })
             <ArrowUpRight className="h-4 w-4" />
             <span>Masuk</span>
           </button>
-          <button type="button" onClick={() => setType("transfer" as any)} className={`py-2 px-1 rounded-lg text-xs font-bold flex flex-col items-center gap-1 transition-all btn-pressable ${(type as any) === "transfer" ? "bg-primary text-white shadow" : "text-text-mutedLight dark:text-text-mutedDark"}`}>
+          <button type="button" onClick={() => setType("transfer")} className={`py-2 px-1 rounded-lg text-xs font-bold flex flex-col items-center gap-1 transition-all btn-pressable ${type === "transfer" ? "bg-primary text-white shadow" : "text-text-mutedLight dark:text-text-mutedDark"}`}>
             <ArrowLeftRight className="h-4 w-4" />
             <span>Transfer</span>
           </button>
@@ -234,7 +245,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose })
         {/* Dynamic Fields based on Transaction Type */}
         <div className="flex flex-col gap-4">
           {/* Wallets */}
-          {(type as any) === "transfer" ? (
+          {type === "transfer" ? (
             <div className="grid grid-cols-2 gap-3">
               <Select label="Dari Dompet" value={walletId} onChange={(e) => setWalletId(e.target.value)} options={activeWallets.map((w) => ({ value: w.id, label: `${w.name} (Saldo: Rp${w.balance.toLocaleString("id-ID")})` }))} />
               <Select label="Ke Dompet" value={transferWalletId} onChange={(e) => setTransferWalletId(e.target.value)} options={activeWallets.map((w) => ({ value: w.id, label: `${w.name}` }))} />
@@ -242,19 +253,29 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose })
           ) : (
             <div className="flex items-end gap-2">
               <div className="flex-1">
-                <Select label="Gunakan Dompet" value={walletId} onChange={(e) => setWalletId(e.target.value)} options={activeWallets.length > 0 ? activeWallets.map((w) => ({ value: w.id, label: `${w.name} (Saldo: Rp${w.balance.toLocaleString("id-ID")})` })) : [{value: '', label: 'Belum ada dompet'}]} />
+                <Select label="Gunakan Dompet" value={walletId} onChange={(e) => setWalletId(e.target.value)} options={activeWallets.length > 0 ? activeWallets.map((w) => ({ value: w.id, label: `${w.name} (Saldo: Rp${w.balance.toLocaleString("id-ID")})` })) : [{ value: "", label: "Belum ada dompet" }]} />
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={() => { onClose(); openWalletModal(); }} className="h-11 px-3" title="Tambah Dompet Baru">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  openWalletModal("add");
+                }}
+                className="h-11 px-3"
+                title="Tambah Dompet Baru"
+              >
                 + Baru
               </Button>
             </div>
           )}
 
           {/* Categories & Subcategories (Not for Transfer / Savings / Debts) */}
-          {type !== "savings" && type !== "debt_payment" && (type as any) !== "transfer" && (
+          {type !== "savings" && type !== "debt_payment" && type !== "transfer" && (
             <div className="grid grid-cols-2 gap-3">
               <Select label="Kategori" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} options={filteredCategories.map((c) => ({ value: c.id, label: c.name }))} />
-              <Select label="Subkategori" value={subCategoryId} onChange={(e) => setSubCategoryId(e.target.value)} options={[{value: '', label: '-- Pilih Subkategori --'}, ...filteredSubCategories.map((sc) => ({ value: sc.id, label: sc.name }))]} />
+              <Select label="Subkategori" value={subCategoryId} onChange={(e) => setSubCategoryId(e.target.value)} options={[{ value: "", label: "-- Pilih Subkategori --" }, ...filteredSubCategories.map((sc) => ({ value: sc.id, label: sc.name }))]} />
             </div>
           )}
 

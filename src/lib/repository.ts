@@ -259,8 +259,7 @@ export const db = {
 
         // Auto-create settings if missing (PGRST116: no rows returned)
         if (error && error.code === "PGRST116") {
-          const newSettings: UserSettings = {
-            id: "settings-" + userId,
+          const newSettings: any = {
             user_id: userId,
             theme: "light",
             notifications_enabled: true,

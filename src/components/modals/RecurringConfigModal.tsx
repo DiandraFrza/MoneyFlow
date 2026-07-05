@@ -26,12 +26,12 @@ export const RecurringConfigModal: React.FC<RecurringConfigModalProps> = ({ isOp
   const [formData, setFormData] = useState({
     wallet_id: "",
     category_id: "",
-    type: "expense" as const,
+    type: "expense" as RecurringTransaction["type"],
     amount: "",
     description: "",
-    frequency: "monthly" as const,
-    start_date: "",
-    end_date: "",
+    frequency: "monthly" as RecurringTransaction["frequency"],
+    interval_day: "",
+    next_date: "",
   });
 
   const [loading, setLoading] = useState(false);
@@ -40,31 +40,35 @@ export const RecurringConfigModal: React.FC<RecurringConfigModalProps> = ({ isOp
 
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0];
-    if (mode === "add") {
-      setFormData({
-        wallet_id: wallets[0]?.id || "",
-        category_id: "",
-        type: "expense",
-        amount: "",
-        description: "",
-        frequency: "monthly",
-        start_date: today,
-        end_date: "",
-      });
-    } else if (mode === "edit" && recurring) {
-      setFormData({
-        wallet_id: recurring.wallet_id,
-        category_id: recurring.category_id || "",
-        type: recurring.type,
-        amount: recurring.amount.toString(),
-        description: recurring.description || "",
-        frequency: recurring.frequency,
-        start_date: recurring.frequency === "daily" ? today : today,
-        end_date: recurring.end_date || "",
-      });
-    }
-    setError("");
-    setSuccess("");
+    const timeoutId = window.setTimeout(() => {
+      if (mode === "add") {
+        setFormData({
+          wallet_id: wallets[0]?.id || "",
+          category_id: "",
+          type: "expense",
+          amount: "",
+          description: "",
+          frequency: "monthly",
+          interval_day: "5",
+          next_date: today,
+        });
+      } else if (mode === "edit" && recurring) {
+        setFormData({
+          wallet_id: recurring.wallet_id,
+          category_id: recurring.category_id || "",
+          type: recurring.type,
+          amount: recurring.amount.toString(),
+          description: recurring.description || "",
+          frequency: recurring.frequency,
+          interval_day: recurring.interval_day.toString(),
+          next_date: recurring.next_date || today,
+        });
+      }
+      setError("");
+      setSuccess("");
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [mode, recurring, isOpen, wallets]);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -101,8 +105,8 @@ export const RecurringConfigModal: React.FC<RecurringConfigModalProps> = ({ isOp
           amount: parseFloat(formData.amount),
           description: formData.description,
           frequency: formData.frequency,
-          start_date: formData.start_date,
-          end_date: formData.end_date || undefined,
+          interval_day: parseInt(formData.interval_day || "5", 10),
+          next_date: formData.next_date,
         });
         setSuccess("Transaksi rutin berhasil dibuat!");
       } else if (mode === "edit" && recurring) {
@@ -112,7 +116,8 @@ export const RecurringConfigModal: React.FC<RecurringConfigModalProps> = ({ isOp
           amount: parseFloat(formData.amount),
           description: formData.description,
           frequency: formData.frequency,
-          end_date: formData.end_date || undefined,
+          interval_day: parseInt(formData.interval_day || "5", 10),
+          next_date: formData.next_date,
         });
         setSuccess("Transaksi rutin berhasil diperbarui!");
       }
@@ -154,14 +159,14 @@ export const RecurringConfigModal: React.FC<RecurringConfigModalProps> = ({ isOp
   const title = mode === "add" ? "Tambah Transaksi Rutin" : mode === "edit" ? "Edit Transaksi Rutin" : "Hapus Transaksi Rutin";
 
   return (
-    <Dialog open={isOpen} onOpenChange={closeModal}>
+    <Dialog isOpen={isOpen} onClose={closeModal} title={title}>
       <div className="w-full max-w-md p-6 bg-white dark:bg-slate-900 rounded-lg max-h-[90vh] overflow-y-auto">
         <h2 className="text-lg font-bold mb-4">{title}</h2>
 
         {mode === "delete" ? (
           <div className="space-y-4">
             <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
-              <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
               <p className="text-sm text-red-800 dark:text-red-300">Apakah Anda yakin ingin menghapus transaksi rutin ini? Transaksi yang sudah dibuat tidak akan dihapus.</p>
             </div>
 
@@ -189,20 +194,17 @@ export const RecurringConfigModal: React.FC<RecurringConfigModalProps> = ({ isOp
             <Select
               label="Frekuensi"
               value={formData.frequency}
-              onChange={(e) => setFormData({ ...formData, frequency: e.target.value as any })}
+              onChange={(e) => setFormData({ ...formData, frequency: e.target.value as RecurringTransaction["frequency"] })}
               options={[
-                { value: "daily", label: "Harian" },
                 { value: "weekly", label: "Mingguan" },
-                { value: "biweekly", label: "Dua Mingguan" },
                 { value: "monthly", label: "Bulanan" },
-                { value: "quarterly", label: "Triwulanan" },
                 { value: "yearly", label: "Tahunan" },
               ]}
             />
 
-            <Input type="date" label="Tanggal Mulai" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} required />
+            <Input type="number" label="Hari Interval" placeholder="5" value={formData.interval_day} onChange={(e) => setFormData({ ...formData, interval_day: e.target.value })} required />
 
-            <Input type="date" label="Tanggal Akhir (Opsional)" value={formData.end_date} onChange={(e) => setFormData({ ...formData, end_date: e.target.value })} />
+            <Input type="date" label="Tanggal Tagihan Berikutnya" value={formData.next_date} onChange={(e) => setFormData({ ...formData, next_date: e.target.value })} required />
 
             {error && <div className="p-3 bg-red-100 border border-red-300 text-red-700 rounded text-sm">{error}</div>}
 

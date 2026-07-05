@@ -22,7 +22,7 @@ export const DebtConfigModal: React.FC<DebtConfigModalProps> = ({ isOpen, debt }
   const { mode, closeModal } = useModalStore();
 
   const [formData, setFormData] = useState({
-    type: "borrowed" as const,
+    type: "borrowed" as "borrowed" | "lent",
     person_name: "",
     amount: "",
     interest_rate: "",
@@ -141,14 +141,14 @@ export const DebtConfigModal: React.FC<DebtConfigModalProps> = ({ isOpen, debt }
   const title = mode === "add" ? "Catat Utang/Piutang Baru" : mode === "edit" ? "Edit Utang/Piutang" : "Hapus Utang/Piutang";
 
   return (
-    <Dialog open={isOpen} onOpenChange={closeModal}>
+    <Dialog isOpen={isOpen} onClose={closeModal} title={title}>
       <div className="w-full max-w-md p-6 bg-white dark:bg-slate-900 rounded-lg max-h-[90vh] overflow-y-auto">
         <h2 className="text-lg font-bold mb-4">{title}</h2>
 
         {mode === "delete" ? (
           <div className="space-y-4">
             <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
-              <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
               <p className="text-sm text-red-800 dark:text-red-300">Apakah Anda yakin ingin menghapus catatan utang ini?</p>
             </div>
 

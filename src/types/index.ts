@@ -53,7 +53,7 @@ export interface SubCategory {
   created_at?: string;
 }
 
-export type TransactionType = "income" | "expense" | "savings" | "debt_payment" | "installment";
+export type TransactionType = "income" | "expense" | "transfer" | "savings" | "debt_payment" | "installment";
 
 export interface Transaction {
   id: string;

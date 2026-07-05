@@ -9,7 +9,7 @@ import { Dialog } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select } from "../ui/select";
-import { AlertTriangle, Save, Trash2 } from "lucide-react";
+import { AlertTriangle, Save } from "lucide-react";
 
 interface WalletConfigModalProps {
   isOpen: boolean;
@@ -139,7 +139,7 @@ export const WalletConfigModal: React.FC<WalletConfigModalProps> = ({ isOpen, wa
   const title = mode === "add" ? "Tambah Dompet Baru" : mode === "edit" ? "Edit Dompet" : "Hapus Dompet";
 
   return (
-    <Dialog open={isOpen} onOpenChange={closeModal}>
+    <Dialog isOpen={isOpen} onClose={closeModal} title={title}>
       <div className="w-full max-w-md p-6 bg-white dark:bg-slate-900 rounded-lg">
         <h2 className="text-lg font-bold mb-4">{title}</h2>
 
@@ -147,7 +147,7 @@ export const WalletConfigModal: React.FC<WalletConfigModalProps> = ({ isOpen, wa
           // Delete confirmation
           <div className="space-y-4">
             <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
-              <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold text-red-900 dark:text-red-200">Konfirmasi Penghapusan</p>
                 <p className="text-sm text-red-800 dark:text-red-300 mt-1">Apakah Anda yakin ingin menghapus dompet "{wallet?.name}"? Tindakan ini tidak dapat dibatalkan.</p>
@@ -190,34 +190,34 @@ export const WalletConfigModal: React.FC<WalletConfigModalProps> = ({ isOpen, wa
               options={[
                 { value: "", label: "Pilih Provider..." },
                 // Bank Nasional
-                { value: "BCA", label: "🏦 Bank BCA" },
-                { value: "Mandiri", label: "🏦 Bank Mandiri" },
-                { value: "BNI", label: "🏦 Bank BNI" },
-                { value: "BRI", label: "🏦 Bank BRI" },
-                { value: "BSI", label: "🏦 Bank Syariah Indonesia (BSI)" },
-                { value: "CIMB", label: "🏦 CIMB Niaga" },
-                { value: "Permata", label: "🏦 Bank Permata" },
-                { value: "Danamon", label: "🏦 Bank Danamon" },
-                { value: "BTN", label: "🏦 Bank BTN" },
-                { value: "Mega", label: "🏦 Bank Mega" },
-                { value: "MegaSyariah", label: "🏦 Bank Mega Syariah" },
-                { value: "Panin", label: "🏦 Bank Panin" },
+                { value: "BCA", label: "Bank BCA" },
+                { value: "Mandiri", label: "Bank Mandiri" },
+                { value: "BNI", label: "Bank BNI" },
+                { value: "BRI", label: "Bank BRI" },
+                { value: "BSI", label: "Bank Syariah Indonesia (BSI)" },
+                { value: "CIMB", label: "CIMB Niaga" },
+                { value: "Permata", label: "Bank Permata" },
+                { value: "Danamon", label: "Bank Danamon" },
+                { value: "BTN", label: "Bank BTN" },
+                { value: "Mega", label: "Bank Mega" },
+                { value: "MegaSyariah", label: "Bank Mega Syariah" },
+                { value: "Panin", label: "Bank Panin" },
                 // Bank Digital
-                { value: "SeaBank", label: "💳 Sea Bank" },
-                { value: "Jago", label: "💳 Bank Jago" },
-                { value: "Allo", label: "💳 Allo Bank" },
-                { value: "Neo", label: "💳 Neo Bank" },
-                { value: "Blu", label: "💳 blu by BCA Digital" },
-                { value: "Jenius", label: "💳 Jenius (BTPN)" },
-                { value: "Neobank", label: "💳 Neo Commerce" },
+                { value: "SeaBank", label: "Sea Bank" },
+                { value: "Jago", label: "Bank Jago" },
+                { value: "Allo", label: "Allo Bank" },
+                { value: "Neo", label: "Neo Bank" },
+                { value: "Blu", label: "blu by BCA Digital" },
+                { value: "Jenius", label: "Jenius (BTPN)" },
+                { value: "Neobank", label: "Neo Commerce" },
                 // E-Wallet
-                { value: "GoPay", label: "📱 GoPay" },
-                { value: "Dana", label: "📱 Dana" },
-                { value: "OVO", label: "📱 OVO" },
-                { value: "ShopeePay", label: "📱 ShopeePay" },
-                { value: "LinkAja", label: "📱 LinkAja" },
-                { value: "iSaku", label: "📱 iSaku" },
-                { value: "Other", label: "📌 Lainnya" },
+                { value: "GoPay", label: "GoPay" },
+                { value: "Dana", label: "Dana" },
+                { value: "OVO", label: "OVO" },
+                { value: "ShopeePay", label: "ShopeePay" },
+                { value: "LinkAja", label: "LinkAja" },
+                { value: "iSaku", label: "iSaku" },
+                { value: "Other", label: "Lainnya" },
               ]}
             />
 

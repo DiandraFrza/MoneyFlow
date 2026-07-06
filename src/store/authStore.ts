@@ -18,6 +18,7 @@ interface AuthState {
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   updateSettings: (updates: Partial<UserSettings>) => Promise<void>;
+  switchUser: (userId: string) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -248,15 +249,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   updateSettings: async (updates) => {
-    const currentUser = get().user;
-    if (!currentUser) return;
+    if (!get().user) return;
     try {
-      console.log("[Auth] Update settings, user_id:", currentUser.id, "updates:", updates);
-      const updated = await db.settings.update(currentUser.id, updates);
+      const updated = await db.settings.update(get().user!.id, updates);
       set({ settings: updated });
     } catch (err: any) {
-      console.error("[Auth] Update settings error:", err.message);
-      set({ error: err.message });
+      console.error("[Auth] Error updateSettings:", err.message);
+    }
+  },
+
+  switchUser: async (userId: string) => {
+    set({ loading: true });
+    try {
+      const profile = await db.profile.get(userId);
+      const settings = await db.settings.get(userId);
+      set({ user: profile, settings: settings, loading: false });
+    } catch (err: any) {
+      console.error("[Auth] Error switchUser:", err.message);
+      set({ error: err.message, loading: false });
     }
   },
 }));

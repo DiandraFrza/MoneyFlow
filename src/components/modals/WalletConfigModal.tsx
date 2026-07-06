@@ -1,9 +1,9 @@
-/** @format */
-
 import React, { useState, useEffect } from "react";
 import { useFinanceStore } from "../../store/financeStore";
 import { useAuthStore } from "../../store/authStore";
 import { useModalStore } from "../../store/modalStore";
+import { useConfirm } from "../../store/confirmStore";
+import { useToastStore } from "../../store/toastStore";
 import type { Wallet } from "../../types";
 import { Dialog } from "../ui/dialog";
 import { Button } from "../ui/button";
@@ -20,6 +20,8 @@ export const WalletConfigModal: React.FC<WalletConfigModalProps> = ({ isOpen, wa
   const { user } = useAuthStore();
   const { addWallet, updateWallet, deleteWallet } = useFinanceStore();
   const { mode, closeModal } = useModalStore();
+  const confirm = useConfirm();
+  const { showToast } = useToastStore();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -88,7 +90,7 @@ export const WalletConfigModal: React.FC<WalletConfigModalProps> = ({ isOpen, wa
           icon: formData.icon,
           description: formData.description || undefined,
         });
-        setSuccess("Dompet berhasil ditambahkan!");
+        showToast("Dompet berhasil ditambahkan!", "success");
       } else if (mode === "edit" && wallet) {
         await updateWallet(user.id, wallet.id, {
           name: formData.name,
@@ -99,7 +101,7 @@ export const WalletConfigModal: React.FC<WalletConfigModalProps> = ({ isOpen, wa
           icon: formData.icon,
           description: formData.description || undefined,
         });
-        setSuccess("Dompet berhasil diperbarui!");
+        showToast("Dompet berhasil diperbarui!", "success");
       }
 
       setTimeout(() => {
@@ -115,16 +117,22 @@ export const WalletConfigModal: React.FC<WalletConfigModalProps> = ({ isOpen, wa
   const handleDelete = async () => {
     if (!user || !wallet) return;
 
-    if (!window.confirm("Hapus dompet ini? Semua transaksi terkait akan terpengaruh.")) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "Hapus Dompet",
+      message: "Apakah Anda yakin ingin menghapus dompet ini? Semua transaksi terkait akan terpengaruh secara otomatis.",
+      confirmLabel: "Hapus",
+      cancelLabel: "Batal",
+      type: "danger",
+    });
+
+    if (!confirmed) return;
 
     setLoading(true);
     setError("");
 
     try {
       await deleteWallet(user.id, wallet.id);
-      setSuccess("Dompet berhasil dihapus!");
+      showToast("Dompet berhasil dihapus!", "success");
 
       setTimeout(() => {
         closeModal();

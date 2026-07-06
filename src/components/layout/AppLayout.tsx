@@ -2,12 +2,15 @@
 
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FileText, Plus, BarChart3, Settings, Bell, LogOut, Menu, X, Wallet } from "lucide-react";
+import { LayoutDashboard, FileText, Plus, BarChart3, Settings, Bell, LogOut, Menu, X, Wallet, UserRound, CheckCircle2 } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
+import { useToastStore } from "../../store/toastStore";
 import { useFinanceStore } from "../../store/financeStore";
 import { QuickAddModal } from "../transactions/QuickAddModal";
 import { cn } from "../../lib/utils";
 import { useSmartAlerts } from "../../hooks/useSmartAlerts";
+import { getJointLink, setJointLink } from "../../lib/repository";
+import type { AppNotification } from "../../types";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -16,8 +19,9 @@ interface AppLayoutProps {
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout, settings } = useAuthStore();
-  const { notifications, readAllNotifications } = useFinanceStore();
+  const { user, logout, switchUser, settings } = useAuthStore();
+  const { notifications, readAllNotifications, readNotification } = useFinanceStore();
+  const { showToast } = useToastStore();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -57,6 +61,24 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const handleMarkNotifsRead = () => {
     if (user) {
       readAllNotifications(user.id);
+    }
+  };
+
+  const handleNotifClick = async (notif: AppNotification) => {
+    if (!user) return;
+    if (!notif.is_read) {
+      await readNotification(user.id, notif.id);
+    }
+    setIsNotifOpen(false);
+
+    if (notif.type === "budget") {
+      navigate("/settings?tab=budgets");
+    } else if (notif.type === "debt") {
+      navigate("/settings?tab=debts");
+    } else if (notif.type === "bill") {
+      navigate("/settings?tab=recurring");
+    } else {
+      navigate("/settings?tab=wallets");
     }
   };
 
@@ -183,6 +205,22 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
           {/* Quick Stats / Controls */}
           <div className="flex items-center gap-3">
+            {/* Account Switcher */}
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200/60 bg-slate-50 px-2.5 py-1.5 shadow-soft-sm transition-all hover:bg-slate-100 dark:border-slate-800/80 dark:bg-slate-800 dark:hover:bg-slate-700/80">
+              <UserRound className="h-4 w-4 text-primary" />
+              <select
+                value={user?.id || "local-user"}
+                onChange={async (e) => {
+                  await switchUser(e.target.value);
+                }}
+                className="h-8 text-xs font-black bg-transparent pr-2 outline-none focus:ring-0 text-primary cursor-pointer tracking-wide rounded-2xl"
+              >
+                <option value="local-user">Personal Mode</option>
+                <option value="user-1">Akun 1 (Budi)</option>
+                <option value="user-2">Akun 2 (Siti)</option>
+                <option value="user-joint">Akun Bersama</option>
+              </select>
+            </div>
             {/* Notification Center */}
             <div className="relative">
               <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="h-10 w-10 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800/60 text-text-mutedLight dark:text-text-mutedDark flex items-center justify-center transition-colors relative btn-pressable">
@@ -208,13 +246,36 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                         <p className="text-xs text-center text-text-mutedLight dark:text-text-mutedDark py-6">Tidak ada notifikasi baru.</p>
                       ) : (
                         notifications.slice(0, 10).map((notif) => (
-                          <div key={notif.id} className={cn("p-3 rounded-xl border border-slate-50 dark:border-slate-800/30 text-xs flex flex-col gap-1 transition-all", !notif.is_read ? "bg-slate-50/80 dark:bg-slate-800/40 font-medium" : "opacity-80")}>
+                          <div key={notif.id} onClick={() => handleNotifClick(notif)} className={cn("p-3 rounded-xl border border-slate-50 dark:border-slate-800/30 text-xs flex flex-col gap-1 transition-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40", !notif.is_read ? "bg-slate-50/80 dark:bg-slate-800/40 font-medium" : "opacity-80")}>
                             <div className="flex items-center justify-between">
                               <span className={cn("font-bold rounded px-1.5 py-0.5 text-[9px]", notif.type === "budget" && "bg-danger/10 text-danger", notif.type === "bill" && "bg-primary/10 text-primary", notif.type === "debt" && "bg-warning/10 text-warning", notif.type === "system" && "bg-success/10 text-success")}>{notif.type.toUpperCase()}</span>
                               <span className="text-[9px] text-text-mutedLight dark:text-text-mutedDark">{notif.created_at ? new Date(notif.created_at).toLocaleDateString("id-ID", { hour: "2-digit", minute: "2-digit" }) : ""}</span>
                             </div>
                             <h4 className="font-bold text-xs mt-0.5 leading-tight">{notif.title}</h4>
                             <p className="text-text-mutedLight dark:text-text-mutedDark leading-normal">{notif.message}</p>
+                            {notif.action_type === "joint_invite" && !notif.is_read && (
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const link = getJointLink();
+                                  if (user?.id === "user-1") link.user1Status = "accepted";
+                                  if (user?.id === "user-2") link.user2Status = "accepted";
+                                  if (link.user1Status === "accepted" && link.user2Status === "accepted") {
+                                    link.active = true;
+                                  }
+                                  setJointLink(link);
+                                  await readNotification(user!.id, notif.id);
+                                  showToast("Undangan diterima! Akun Bersama siap digunakan.", "success");
+                                  if (link.active) {
+                                    showToast("Kedua akun telah terhubung! Akun Bersama aktif.", "success");
+                                  }
+                                }}
+                                className="mt-1.5 self-start px-3 py-1.5 bg-success/10 hover:bg-success/20 text-success font-bold text-[10px] rounded-lg border border-success/20 transition-all btn-pressable"
+                              >
+                                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                                Terima Undangan (ACC)
+                              </button>
+                            )}
                           </div>
                         ))
                       )}

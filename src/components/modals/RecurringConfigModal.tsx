@@ -1,9 +1,9 @@
-/** @format */
-
 import React, { useState, useEffect } from "react";
 import { useFinanceStore } from "../../store/financeStore";
 import { useAuthStore } from "../../store/authStore";
 import { useModalStore } from "../../store/modalStore";
+import { useConfirm } from "../../store/confirmStore";
+import { useToastStore } from "../../store/toastStore";
 import type { RecurringTransaction } from "../../types";
 import { Dialog } from "../ui/dialog";
 import { Button } from "../ui/button";
@@ -20,6 +20,8 @@ export const RecurringConfigModal: React.FC<RecurringConfigModalProps> = ({ isOp
   const { user } = useAuthStore();
   const { wallets, categories, addRecurring, updateRecurring, deleteRecurring } = useFinanceStore();
   const { mode, closeModal } = useModalStore();
+  const confirm = useConfirm();
+  const { showToast } = useToastStore();
 
   const expenseCategories = categories.filter((c) => c.type === "expense");
 
@@ -108,7 +110,7 @@ export const RecurringConfigModal: React.FC<RecurringConfigModalProps> = ({ isOp
           interval_day: parseInt(formData.interval_day || "5", 10),
           next_date: formData.next_date,
         });
-        setSuccess("Transaksi rutin berhasil dibuat!");
+        showToast("Transaksi rutin berhasil dibuat!", "success");
       } else if (mode === "edit" && recurring) {
         await updateRecurring(user.id, recurring.id, {
           wallet_id: formData.wallet_id,
@@ -119,7 +121,7 @@ export const RecurringConfigModal: React.FC<RecurringConfigModalProps> = ({ isOp
           interval_day: parseInt(formData.interval_day || "5", 10),
           next_date: formData.next_date,
         });
-        setSuccess("Transaksi rutin berhasil diperbarui!");
+        showToast("Transaksi rutin berhasil diperbarui!", "success");
       }
 
       setTimeout(() => {
@@ -135,16 +137,22 @@ export const RecurringConfigModal: React.FC<RecurringConfigModalProps> = ({ isOp
   const handleDelete = async () => {
     if (!user || !recurring) return;
 
-    if (!window.confirm("Hapus transaksi rutin ini?")) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "Hapus Transaksi Rutin",
+      message: "Apakah Anda yakin ingin menghapus transaksi rutin ini?",
+      confirmLabel: "Hapus",
+      cancelLabel: "Batal",
+      type: "danger",
+    });
+
+    if (!confirmed) return;
 
     setLoading(true);
     setError("");
 
     try {
       await deleteRecurring(user.id, recurring.id);
-      setSuccess("Transaksi rutin berhasil dihapus!");
+      showToast("Transaksi rutin berhasil dihapus!", "success");
 
       setTimeout(() => {
         closeModal();

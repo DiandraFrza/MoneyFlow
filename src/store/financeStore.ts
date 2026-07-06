@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { db, runRecurringEngine, ensureDatabaseSeeded } from "../lib/repository";
+import { useActorStore } from "./actorStore";
 import type { Wallet, Transaction, WalletTransfer, Budget, SavingsGoal, Debt, RecurringTransaction, AppNotification, Category, SubCategory } from "../types";
 
 interface FinanceState {
@@ -138,9 +139,17 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   addWallet: async (userId, wallet) => {
     if (!userId) { console.error("[Finance] addWallet: userId tidak ada"); return; }
-    console.log("[Finance] addWallet, userId:", userId, "wallet:", wallet);
+    
+    let targetUserId = userId;
+    if (userId === "user-joint") {
+      const chosenActor = await useActorStore.getState().prompt();
+      if (!chosenActor) return;
+      targetUserId = chosenActor;
+    }
+
+    console.log("[Finance] addWallet, targetUserId:", targetUserId, "wallet:", wallet);
     try {
-      await db.wallets.create(userId, wallet);
+      await db.wallets.create(targetUserId, wallet);
       const wallets = await db.wallets.list(userId);
       set({ wallets });
       console.log("[Finance] ✅ Wallet berhasil ditambahkan");
@@ -189,9 +198,17 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   addTransaction: async (userId, tx) => {
     if (!userId) { console.error("[Finance] addTransaction: userId tidak ada"); return; }
-    console.log("[Finance] addTransaction, userId:", userId, "tx:", tx);
+    
+    let targetUserId = userId;
+    if (userId === "user-joint") {
+      const chosenActor = await useActorStore.getState().prompt();
+      if (!chosenActor) return;
+      targetUserId = chosenActor;
+    }
+
+    console.log("[Finance] addTransaction, targetUserId:", targetUserId, "tx:", tx);
     try {
-      await db.transactions.create(userId, tx);
+      await db.transactions.create(targetUserId, tx);
       
       // Refresh semua data yang mungkin berubah
       const [transactions, wallets, savings, debts] = await Promise.all([
@@ -256,7 +273,15 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   setBudget: async (userId, budget) => {
     if (!userId) return;
-    await db.budgets.upsert(userId, budget);
+    
+    let targetUserId = userId;
+    if (userId === "user-joint") {
+      const chosenActor = await useActorStore.getState().prompt();
+      if (!chosenActor) return;
+      targetUserId = chosenActor;
+    }
+
+    await db.budgets.upsert(targetUserId, budget);
     const budgets = await db.budgets.list(userId);
     set({ budgets });
   },
@@ -270,7 +295,15 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   addSavingsGoal: async (userId, goal) => {
     if (!userId) return;
-    await db.savings.create(userId, goal);
+    
+    let targetUserId = userId;
+    if (userId === "user-joint") {
+      const chosenActor = await useActorStore.getState().prompt();
+      if (!chosenActor) return;
+      targetUserId = chosenActor;
+    }
+
+    await db.savings.create(targetUserId, goal);
     const savings = await db.savings.list(userId);
     set({ savings });
   },
@@ -291,7 +324,15 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   addDebt: async (userId, debt) => {
     if (!userId) return;
-    await db.debts.create(userId, debt);
+    
+    let targetUserId = userId;
+    if (userId === "user-joint") {
+      const chosenActor = await useActorStore.getState().prompt();
+      if (!chosenActor) return;
+      targetUserId = chosenActor;
+    }
+
+    await db.debts.create(targetUserId, debt);
     const debts = await db.debts.list(userId);
     set({ debts });
   },
@@ -312,7 +353,15 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   addRecurring: async (userId, rec) => {
     if (!userId) return;
-    await db.recurring.create(userId, rec);
+    
+    let targetUserId = userId;
+    if (userId === "user-joint") {
+      const chosenActor = await useActorStore.getState().prompt();
+      if (!chosenActor) return;
+      targetUserId = chosenActor;
+    }
+
+    await db.recurring.create(targetUserId, rec);
     const recurring = await db.recurring.list(userId);
     set({ recurring });
   },

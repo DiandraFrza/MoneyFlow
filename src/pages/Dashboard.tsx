@@ -1,3 +1,5 @@
+/** @format */
+
 import React, { useMemo, Suspense } from "react";
 import { useFinanceStore } from "../store/financeStore";
 import { useFinancialHealth } from "../hooks/useFinancialHealth";
@@ -7,14 +9,10 @@ import { Progress } from "../components/ui/progress";
 import { motion } from "framer-motion";
 import { TrendingUp, TrendingDown, Scale, AlertTriangle, Lightbulb, Wallet as WalletIcon, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { LazyViewport } from "../components/ui/lazy-viewport";
+import { BeginnerGuide } from "../components/ui/BeginnerGuide";
 
-const LazyCashFlowTrendChart = React.lazy(() =>
-  import("../components/dashboard/DashboardCharts").then((m) => ({ default: m.CashFlowTrendChart }))
-);
-const LazyCategoryDistributionChart = React.lazy(() =>
-  import("../components/dashboard/DashboardCharts").then((m) => ({ default: m.CategoryDistributionChart }))
-);
-
+const LazyCashFlowTrendChart = React.lazy(() => import("../components/dashboard/DashboardCharts").then((m) => ({ default: m.CashFlowTrendChart })));
+const LazyCategoryDistributionChart = React.lazy(() => import("../components/dashboard/DashboardCharts").then((m) => ({ default: m.CategoryDistributionChart })));
 
 export const Dashboard: React.FC = () => {
   const { wallets, transactions, budgets, categories } = useFinanceStore();
@@ -115,7 +113,7 @@ export const Dashboard: React.FC = () => {
     // Coffee / Snack heuristic
     const coffeeSpent = currentMonthTransactions.filter((t) => t.description?.toLowerCase().includes("kopi") || t.description?.toLowerCase().includes("coffee") || t.description?.toLowerCase().includes("jajan")).reduce((sum, t) => sum + t.amount, 0);
     if (coffeeSpent > 100000) {
-      insights.push(`☕ Anda telah membelanjakan ${formatCurrency(coffeeSpent)} untuk jajan/kopi bulan ini.`);
+      insights.push(`Anda telah membelanjakan ${formatCurrency(coffeeSpent)} untuk jajan/kopi bulan ini.`);
     }
 
     // Largest Expense Category Heuristic
@@ -156,6 +154,7 @@ export const Dashboard: React.FC = () => {
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="show" className="flex flex-col gap-6">
+      <BeginnerGuide pageKey="dashboard" />
       {/* ---------------------------------------------------------------------
           SMART WARNING PANEL (Alert System)
           --------------------------------------------------------------------- */}
@@ -381,11 +380,7 @@ export const Dashboard: React.FC = () => {
                   <p className="text-xs text-center text-text-mutedLight py-12 flex-1">Tidak ada transaksi belanja bulan ini.</p>
                 ) : (
                   <Suspense fallback={<div className="w-full h-full bg-slate-100/50 dark:bg-slate-800/40 rounded-2xl animate-pulse" />}>
-                    <LazyCategoryDistributionChart 
-                      data={categoryChartData} 
-                      totalExpense={totalExpense} 
-                      formatCurrency={formatCurrency} 
-                    />
+                    <LazyCategoryDistributionChart data={categoryChartData} totalExpense={totalExpense} formatCurrency={formatCurrency} />
                   </Suspense>
                 )}
               </CardContent>
@@ -412,7 +407,7 @@ export const Dashboard: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                   {smartInsights.map((insight, idx) => (
                     <div key={idx} className="p-3.5 bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800/40 rounded-xl text-xs font-semibold flex items-center gap-3 text-text-light dark:text-text-dark">
-                      <span className="text-lg">💡</span>
+                      <Lightbulb className="h-4 w-4 text-warning" />
                       <span className="leading-relaxed">{insight}</span>
                     </div>
                   ))}

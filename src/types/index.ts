@@ -150,6 +150,7 @@ export interface AppNotification {
   type: "budget" | "bill" | "savings" | "debt" | "system";
   is_read: boolean;
   created_at?: string;
+  action_type?: "joint_invite" | string;
 }
 
 export interface FinancialHealthLog {

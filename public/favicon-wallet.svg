@@ -1,7 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none">
-  <rect x="3" y="6" width="18" height="12" rx="3" fill="#7c3aed" />
-  <path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-5A2.5 2.5 0 0 0 6 6.5V8" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" />
-  <path d="M18 12h2" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" />
-  <circle cx="16" cy="12" r="1.6" fill="#ffffff" />
-  <rect x="3" y="8.5" width="10" height="3" rx="1.5" fill="#ffffff" opacity="0.9" />
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#8b5cf6" />
+    </linearGradient>
+    
+    <!-- Glow Filter -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Glowing rounded background -->
+  <rect width="64" height="64" rx="18" fill="url(#bgGrad)" />
+  <rect width="60" height="60" x="2" y="2" rx="16" fill="#0f172a" />
+
+  <!-- Flowing curves/ribbons representing MoneyFlow -->
+  <path d="M16 44 C 24 44, 20 20, 36 20 C 44 20, 40 32, 48 32" stroke="url(#bgGrad)" stroke-width="5.5" stroke-linecap="round" filter="url(#glow)" />
+  <path d="M16 44 C 24 44, 20 20, 36 20 C 44 20, 40 32, 48 32" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" />
+
+  <!-- Growth arrowhead/circle -->
+  <circle cx="48" cy="32" r="4.5" fill="#ffffff" filter="url(#glow)" />
+  <circle cx="48" cy="32" r="2.5" fill="#10b981" />
 </svg>

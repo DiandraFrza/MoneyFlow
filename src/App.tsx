@@ -18,6 +18,10 @@ const BudgetConfigModal = React.lazy(() => import("./components/modals/BudgetCon
 const DebtConfigModal = React.lazy(() => import("./components/modals/DebtConfigModal").then((m) => ({ default: m.DebtConfigModal })));
 const RecurringConfigModal = React.lazy(() => import("./components/modals/RecurringConfigModal").then((m) => ({ default: m.RecurringConfigModal })));
 const ProfileConfigModal = React.lazy(() => import("./components/modals/ProfileConfigModal").then((m) => ({ default: m.ProfileConfigModal })));
+import { ToastContainer } from "./components/ui/ToastContainer";
+import { ConfirmModal } from "./components/modals/ConfirmModal";
+import { ActorPromptModal } from "./components/modals/ActorPromptModal";
+
 
 
 // ============================================================
@@ -141,6 +145,11 @@ export const App: React.FC = () => {
           <ProfileConfigModal isOpen={activeModal === "profile"} />
         )}
       </Suspense>
+
+      {/* Global Toast Alerts & Custom Confirmation Modal */}
+      <ToastContainer />
+      <ConfirmModal />
+      <ActorPromptModal />
     </Router>
   );
 };

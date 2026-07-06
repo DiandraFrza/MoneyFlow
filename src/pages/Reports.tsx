@@ -3,6 +3,7 @@ import { useFinanceStore } from '../store/financeStore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Select } from '../components/ui/select';
 import { LazyViewport } from '../components/ui/lazy-viewport';
+import { BeginnerGuide } from '../components/ui/BeginnerGuide';
 
 import { 
   TrendingUp, TrendingDown, Scale, BarChart3
@@ -227,6 +228,7 @@ export const Reports: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6">
+      <BeginnerGuide pageKey="reports" />
       
       {/* Scope Selector */}
       <Card>

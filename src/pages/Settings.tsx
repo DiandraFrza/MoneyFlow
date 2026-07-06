@@ -1,22 +1,75 @@
 /** @format */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { useFinanceStore } from "../store/financeStore";
 import { useModalStore } from "../store/modalStore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import { Button } from "../components/ui/button";
+import { BeginnerGuide } from "../components/ui/BeginnerGuide";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
-import { User, Wallet as WalletIcon, Scale, Calendar, Plus, Trash2, PiggyBank, CheckCircle2 } from "lucide-react";
+import { User, Wallet as WalletIcon, Scale, Calendar, Plus, Trash2, PiggyBank, CheckCircle2, Tag } from "lucide-react";
+import { useToastStore } from "../store/toastStore";
 
 export const Settings: React.FC = () => {
   const { user, updateProfile } = useAuthStore();
-  const { wallets, categories, budgets, debts, recurring, addWallet, setBudget, addDebt, updateDebt, addRecurring } = useFinanceStore();
+  const { wallets, categories, subcategories, budgets, debts, recurring, addWallet, setBudget, addDebt, updateDebt, addRecurring, addCategory, addSubcategory, addTransaction } = useFinanceStore();
   const { openWalletModal, openBudgetModal, openDebtModal, openRecurringModal, openProfileModal } = useModalStore();
+  const { showToast } = useToastStore();
 
-  const [activeTab, setActiveTab] = useState("profile");
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const activeTab = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get("tab") || "profile";
+  }, [location.search]);
+
+  const setActiveTab = (tab: string) => {
+    navigate(`/settings?tab=${tab}`);
+  };
+
+  // -------------------------------------------------------------------------
+  // Kategori & Subkategori State & Actions
+  // -------------------------------------------------------------------------
+  const [selectedCategoryForSub, setSelectedCategoryForSub] = useState<string>("");
+  const [newSubcategoryName, setNewSubcategoryName] = useState<string>("");
+  const [newCategoryName, setNewCategoryName] = useState<string>("");
+  const [newCategoryType, setNewCategoryType] = useState<"income" | "expense">("expense");
+  const [newCategoryColor, setNewCategoryColor] = useState<string>("#3B82F6");
+
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !newCategoryName.trim()) return;
+    try {
+      await addCategory(user.id, {
+        name: newCategoryName.trim(),
+        type: newCategoryType,
+        icon: "Tag",
+        color: newCategoryColor,
+      });
+      setNewCategoryName("");
+      showToast("Kategori baru berhasil ditambahkan!", "success");
+    } catch (err) {
+      showToast("Gagal menambahkan kategori", "error");
+    }
+  };
+
+  const handleAddSubcategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCategoryForSub || !newSubcategoryName.trim()) return;
+    try {
+      await addSubcategory(selectedCategoryForSub, newSubcategoryName.trim());
+      setNewSubcategoryName("");
+      showToast("Subkategori berhasil ditambahkan!", "success");
+    } catch (err) {
+      showToast("Gagal menambahkan subkategori", "error");
+    }
+  };
+
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
   const currentMonthLabel = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(new Date());
@@ -137,39 +190,94 @@ export const Settings: React.FC = () => {
   const [debtAmount, setDebtAmount] = useState("");
   const [debtDueDate, setDebtDueDate] = useState("");
   const [debtDesc, setDebtDesc] = useState("");
+  const [debtWallet, setDebtWallet] = useState("");
+  const [payVals, setPayVals] = useState<Record<string, string>>({});
+  const [payWallets, setPayWallets] = useState<Record<string, string>>({});
 
   const handleAddDebt = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !debtPerson || !debtAmount) return;
 
-    await addDebt(user.id, {
-      type: debtType,
-      person_name: debtPerson,
-      amount: parseFloat(debtAmount),
-      remaining_amount: parseFloat(debtAmount),
-      due_date: debtDueDate || undefined,
-      description: debtDesc || undefined,
-    });
+    try {
+      await addDebt(user.id, {
+        type: debtType,
+        person_name: debtPerson,
+        amount: parseFloat(debtAmount),
+        remaining_amount: parseFloat(debtAmount),
+        due_date: debtDueDate || undefined,
+        description: debtDesc || undefined,
+      });
 
-    setDebtPerson("");
-    setDebtAmount("");
-    setDebtDueDate("");
-    setDebtDesc("");
+      // Automatically create transaction if wallet is selected
+      if (debtWallet) {
+        const isBorrowed = debtType === "borrowed";
+        const txDesc = `${isBorrowed ? "Pinjaman Masuk" : "Pinjaman Keluar"} (${debtPerson})${
+          debtDesc ? `: ${debtDesc}` : ""
+        }`;
+        
+        await addTransaction(user.id, {
+          wallet_id: debtWallet,
+          category_id: null,
+          sub_category_id: null,
+          type: isBorrowed ? "income" : "expense",
+          amount: parseFloat(debtAmount),
+          description: txDesc,
+          date: new Date().toISOString().split("T")[0],
+        });
+      }
+
+      showToast("Catatan utang berhasil dibuat!", "success");
+
+      setDebtPerson("");
+      setDebtAmount("");
+      setDebtDueDate("");
+      setDebtDesc("");
+      setDebtWallet("");
+    } catch (err) {
+      showToast("Gagal menyimpan catatan utang", "error");
+    }
   };
 
-  const handlePayDebt = async (debtId: string, amountToPay: string) => {
+  const handlePayDebt = async (debtId: string, amountToPay: string, payWalletId: string) => {
     if (!user) return;
     const payVal = parseFloat(amountToPay);
-    if (isNaN(payVal) || payVal <= 0) return;
+    if (isNaN(payVal) || payVal <= 0) {
+      showToast("Masukkan jumlah cicilan yang valid", "warning");
+      return;
+    }
+    if (!payWalletId) {
+      showToast("Pilih dompet pembayaran terlebih dahulu", "warning");
+      return;
+    }
 
     const targetDebt = debts.find((d) => d.id === debtId);
     if (!targetDebt) return;
 
-    const newRemaining = Math.max(0, targetDebt.remaining_amount - payVal);
-    await updateDebt(user.id, debtId, {
-      remaining_amount: newRemaining,
-      status: newRemaining === 0 ? "paid" : "pending",
-    });
+    try {
+      const newRemaining = Math.max(0, targetDebt.remaining_amount - payVal);
+      await updateDebt(user.id, debtId, {
+        remaining_amount: newRemaining,
+        status: newRemaining === 0 ? "paid" : "pending",
+      });
+
+      // Create transaction for payment
+      const isBorrowed = targetDebt.type === "borrowed";
+      const txDesc = `Pembayaran ${isBorrowed ? "Utang" : "Piutang"}: ${targetDebt.person_name}`;
+      
+      await addTransaction(user.id, {
+        wallet_id: payWalletId,
+        category_id: null,
+        sub_category_id: null,
+        type: isBorrowed ? "expense" : "income", // paying debt is expense, receiving piutang is income
+        amount: payVal,
+        description: txDesc,
+        date: new Date().toISOString().split("T")[0],
+      });
+
+      showToast("Pembayaran utang berhasil dicatat!", "success");
+    } catch (err) {
+      showToast("Gagal mencatat pembayaran utang", "error");
+    }
   };
 
 
@@ -216,9 +324,9 @@ export const Settings: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6">
+      <BeginnerGuide pageKey="settings" />
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        {/* Navigation Tabs List */}
-        <TabsList className="grid grid-cols-5 gap-1">
+        <TabsList className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 h-auto">
           <TabsTrigger value="profile">
             <span className="hidden sm:inline">Profil</span>
             <User className="h-4.5 w-4.5 sm:hidden" />
@@ -238,6 +346,10 @@ export const Settings: React.FC = () => {
           <TabsTrigger value="recurring">
             <span className="hidden sm:inline">Rutin</span>
             <Calendar className="h-4.5 w-4.5 sm:hidden" />
+          </TabsTrigger>
+          <TabsTrigger value="categories">
+            <span className="hidden sm:inline">Kategori</span>
+            <Tag className="h-4.5 w-4.5 sm:hidden" />
           </TabsTrigger>
         </TabsList>
 
@@ -491,6 +603,16 @@ export const Settings: React.FC = () => {
                     ]}
                   />
 
+                  <Select
+                    label="Gunakan Dompet (Salurkan Dana)"
+                    value={debtWallet}
+                    onChange={(e) => setDebtWallet(e.target.value)}
+                    options={[
+                      { value: "", label: "-- Tanpa Transaksi Dompet --" },
+                      ...wallets.map((w) => ({ value: w.id, label: `${w.name} (Saldo: Rp${w.balance.toLocaleString("id-ID")})` })),
+                    ]}
+                  />
+
                   <Input label="Nama Orang / Instansi" placeholder="Budi, Bank BCA, dll." value={debtPerson} onChange={(e) => setDebtPerson(e.target.value)} required />
 
                   <Input type="number" label="Jumlah Uang (Rp)" placeholder="0" value={debtAmount} onChange={(e) => setDebtAmount(e.target.value)} required />
@@ -517,7 +639,8 @@ export const Settings: React.FC = () => {
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 {debts.map((d) => {
-                  const [payVal, setPayVal] = useState("");
+                  const payVal = payVals[d.id] || "";
+                  const payWallet = payWallets[d.id] || "";
                   return (
                     <div key={d.id} className="p-4 border rounded-xl shadow-soft-sm bg-white dark:bg-slate-900 flex flex-col gap-3">
                       <div className="flex items-center justify-between">
@@ -545,12 +668,25 @@ export const Settings: React.FC = () => {
                         <div className="flex items-center gap-2">
                           {d.status !== "paid" && (
                             <div className="flex items-center gap-1.5">
-                              <Input type="number" placeholder="Bayar (Rp)" value={payVal} onChange={(e) => setPayVal(e.target.value)} className="h-8 w-24 text-right px-2 text-[10px]" />
+                              <select
+                                value={payWallet}
+                                onChange={(e) => setPayWallets({ ...payWallets, [d.id]: e.target.value })}
+                                className="h-8 text-[10px] w-28 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 py-1 focus:outline-none focus:border-primary text-text-light dark:text-text-dark"
+                              >
+                                <option value="">-- Pilih Dompet --</option>
+                                {wallets.map((w) => (
+                                  <option key={w.id} value={w.id}>
+                                    {w.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <Input type="number" placeholder="Bayar (Rp)" value={payVal} onChange={(e) => setPayVals({ ...payVals, [d.id]: e.target.value })} className="h-8 w-24 text-right px-2 text-[10px]" />
                               <Button
                                 size="sm"
                                 onClick={() => {
-                                  handlePayDebt(d.id, payVal);
-                                  setPayVal("");
+                                  handlePayDebt(d.id, payVal, payWallet);
+                                  setPayVals({ ...payVals, [d.id]: "" });
+                                  setPayWallets({ ...payWallets, [d.id]: "" });
                                 }}
                                 className="h-8 text-[10px] font-bold py-0 px-2.5"
                               >
@@ -652,6 +788,150 @@ export const Settings: React.FC = () => {
                     </div>
                   );
                 })}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* ---------------------------------------------------------------------
+            TAB 6: CATEGORIES & SUBCATEGORIES MANAGEMENT
+            --------------------------------------------------------------------- */}
+        <TabsContent value="categories">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Category List Column */}
+            <Card className="lg:col-span-1">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Tag className="h-5 w-5 text-primary" />
+                  Daftar Kategori
+                </CardTitle>
+                <CardDescription>Pilih kategori untuk melihat atau menambah subkategori.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-1">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategoryForSub(cat.id);
+                      }}
+                      className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
+                        selectedCategoryForSub === cat.id
+                          ? "border-primary bg-primary/5 dark:bg-primary/10 font-bold"
+                          : "border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="h-3 w-3 rounded-full"
+                          style={{ backgroundColor: cat.color }}
+                        />
+                        <span className="text-xs">{cat.name}</span>
+                      </div>
+                      <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                        cat.type === "income" ? "bg-green-50 text-success dark:bg-green-950/20" : "bg-red-50 text-danger dark:bg-red-950/20"
+                      }`}>
+                        {cat.type === "income" ? "Masuk" : "Keluar"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Add Category Form */}
+                <form onSubmit={handleAddCategory} className="border-t border-slate-50 dark:border-slate-800/40 pt-4 flex flex-col gap-3">
+                  <h4 className="text-xs font-bold">Tambah Kategori Baru</h4>
+                  <Input
+                    placeholder="Nama Kategori (misal: Zakat)"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    required
+                    className="h-9 text-xs"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select
+                      value={newCategoryType}
+                      onChange={(e) => setNewCategoryType(e.target.value as any)}
+                      options={[
+                        { value: "expense", label: "Pengeluaran" },
+                        { value: "income", label: "Pemasukan" }
+                      ]}
+                      className="h-9 text-xs"
+                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={newCategoryColor}
+                        onChange={(e) => setNewCategoryColor(e.target.value)}
+                        className="h-9 w-10 border rounded-lg cursor-pointer p-0.5"
+                      />
+                      <span className="text-[10px] text-text-mutedLight dark:text-text-mutedDark">Warna</span>
+                    </div>
+                  </div>
+                  <Button type="submit" size="sm" className="h-9 text-xs font-bold">
+                    Tambah Kategori
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* Subcategory List Column */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  Subkategori
+                </CardTitle>
+                <CardDescription>
+                  {selectedCategoryForSub
+                    ? `Daftar subkategori untuk "${categories.find((c) => c.id === selectedCategoryForSub)?.name}"`
+                    : "Pilih kategori di samping terlebih dahulu untuk mengelola subkategori."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                {selectedCategoryForSub ? (
+                  <>
+                    <div className="flex flex-wrap gap-2 min-h-[100px]">
+                      {subcategories.filter((sc) => sc.category_id === selectedCategoryForSub).length === 0 ? (
+                        <p className="text-xs text-text-mutedLight dark:text-text-mutedDark py-6 italic w-full text-center">
+                          Belum ada subkategori untuk kategori ini.
+                        </p>
+                      ) : (
+                        subcategories
+                          .filter((sc) => sc.category_id === selectedCategoryForSub)
+                          .map((sc) => (
+                            <span
+                              key={sc.id}
+                              className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-xs font-semibold rounded-xl text-text-light dark:text-text-dark"
+                            >
+                              {sc.name}
+                            </span>
+                          ))
+                      )}
+                    </div>
+
+                    {/* Add Subcategory Form */}
+                    <form onSubmit={handleAddSubcategory} className="border-t border-slate-50 dark:border-slate-800/40 pt-4 flex flex-col gap-3 max-w-sm">
+                      <h4 className="text-xs font-bold">Tambah Subkategori Baru</h4>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Nama Subkategori (misal: Kopi Sore)"
+                          value={newSubcategoryName}
+                          onChange={(e) => setNewSubcategoryName(e.target.value)}
+                          required
+                          className="h-10 text-xs flex-1"
+                        />
+                        <Button type="submit" className="h-10 text-xs font-bold px-4">
+                          Tambah
+                        </Button>
+                      </div>
+                    </form>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-slate-300 dark:text-slate-700">
+                    <Tag className="h-12 w-12 stroke-[1.5]" />
+                    <p className="text-xs text-text-mutedLight dark:text-text-mutedDark mt-2">Pilih kategori untuk melihat subkategori</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

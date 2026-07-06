@@ -1,9 +1,9 @@
-/** @format */
-
 import React, { useState, useEffect } from "react";
 import { useFinanceStore } from "../../store/financeStore";
 import { useAuthStore } from "../../store/authStore";
 import { useModalStore } from "../../store/modalStore";
+import { useConfirm } from "../../store/confirmStore";
+import { useToastStore } from "../../store/toastStore";
 import type { Debt } from "../../types";
 import { Dialog } from "../ui/dialog";
 import { Button } from "../ui/button";
@@ -18,8 +18,10 @@ interface DebtConfigModalProps {
 
 export const DebtConfigModal: React.FC<DebtConfigModalProps> = ({ isOpen, debt }) => {
   const { user } = useAuthStore();
-  const { addDebt, updateDebt, deleteDebt } = useFinanceStore();
+  const { addDebt, updateDebt, deleteDebt, wallets, addTransaction } = useFinanceStore();
   const { mode, closeModal } = useModalStore();
+  const confirm = useConfirm();
+  const { showToast } = useToastStore();
 
   const [formData, setFormData] = useState({
     type: "borrowed" as "borrowed" | "lent",
@@ -29,6 +31,7 @@ export const DebtConfigModal: React.FC<DebtConfigModalProps> = ({ isOpen, debt }
     remaining_amount: "",
     due_date: "",
     description: "",
+    walletId: "",
   });
 
   const [loading, setLoading] = useState(false);
@@ -41,10 +44,11 @@ export const DebtConfigModal: React.FC<DebtConfigModalProps> = ({ isOpen, debt }
         type: "borrowed",
         person_name: "",
         amount: "",
-        interest_rate: "",
+        interest_rate: "0",
         remaining_amount: "",
         due_date: "",
         description: "",
+        walletId: wallets.length > 0 ? wallets[0].id : "",
       });
     } else if (mode === "edit" && debt) {
       setFormData({
@@ -55,11 +59,12 @@ export const DebtConfigModal: React.FC<DebtConfigModalProps> = ({ isOpen, debt }
         remaining_amount: debt.remaining_amount.toString(),
         due_date: debt.due_date || "",
         description: debt.description || "",
+        walletId: "",
       });
     }
     setError("");
     setSuccess("");
-  }, [mode, debt, isOpen]);
+  }, [mode, debt, isOpen, wallets]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,7 +96,26 @@ export const DebtConfigModal: React.FC<DebtConfigModalProps> = ({ isOpen, debt }
           due_date: formData.due_date || undefined,
           description: formData.description || undefined,
         });
-        setSuccess("Catatan utang berhasil dibuat!");
+
+        // Automatically create a transaction if a wallet is selected
+        if (formData.walletId) {
+          const isBorrowed = formData.type === "borrowed";
+          const txDesc = `${isBorrowed ? "Pinjaman Masuk" : "Pinjaman Keluar"} (${formData.person_name})${
+            formData.description ? `: ${formData.description}` : ""
+          }`;
+          
+          await addTransaction(user.id, {
+            wallet_id: formData.walletId,
+            category_id: null,
+            sub_category_id: null,
+            type: isBorrowed ? "income" : "expense",
+            amount: parseFloat(formData.amount),
+            description: txDesc,
+            date: new Date().toISOString().split("T")[0],
+          });
+        }
+        
+        showToast("Catatan utang berhasil dibuat!", "success");
       } else if (mode === "edit" && debt) {
         await updateDebt(user.id, debt.id, {
           type: formData.type,
@@ -101,7 +125,7 @@ export const DebtConfigModal: React.FC<DebtConfigModalProps> = ({ isOpen, debt }
           due_date: formData.due_date || undefined,
           description: formData.description || undefined,
         });
-        setSuccess("Catatan utang berhasil diperbarui!");
+        showToast("Catatan utang berhasil diperbarui!", "success");
       }
 
       setTimeout(() => {
@@ -117,16 +141,22 @@ export const DebtConfigModal: React.FC<DebtConfigModalProps> = ({ isOpen, debt }
   const handleDelete = async () => {
     if (!user || !debt) return;
 
-    if (!window.confirm("Hapus catatan utang ini?")) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "Hapus Catatan Utang",
+      message: "Apakah Anda yakin ingin menghapus catatan utang/piutang ini?",
+      confirmLabel: "Hapus",
+      cancelLabel: "Batal",
+      type: "danger",
+    });
+
+    if (!confirmed) return;
 
     setLoading(true);
     setError("");
 
     try {
       await deleteDebt(user.id, debt.id);
-      setSuccess("Catatan utang berhasil dihapus!");
+      showToast("Catatan utang berhasil dihapus!", "success");
 
       setTimeout(() => {
         closeModal();
@@ -174,6 +204,18 @@ export const DebtConfigModal: React.FC<DebtConfigModalProps> = ({ isOpen, debt }
                 { value: "lent", label: "Piutang (Kita Pinjamkan Uang)" },
               ]}
             />
+
+            {mode === "add" && (
+              <Select
+                label="Salurkan ke Dompet"
+                value={formData.walletId}
+                onChange={(e) => setFormData({ ...formData, walletId: e.target.value })}
+                options={[
+                  { value: "", label: "-- Tanpa Hubungan Dompet --" },
+                  ...wallets.map((w) => ({ value: w.id, label: `${w.name} (Saldo: Rp${w.balance.toLocaleString("id-ID")})` })),
+                ]}
+              />
+            )}
 
             <Input label="Nama Orang / Instansi" placeholder="Budi, Bank BCA, dll." value={formData.person_name} onChange={(e) => setFormData({ ...formData, person_name: e.target.value })} required />
 

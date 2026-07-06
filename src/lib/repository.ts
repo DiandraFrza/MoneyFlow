@@ -162,6 +162,9 @@ const DEFAULT_NOTIFICATIONS: AppNotification[] = [
   { id: "n-1", user_id: "local-user", title: "Dompet Terisi Gaji", message: "Hore! Transaksi recurring gaji sebesar Rp8.500.000 berhasil dimasukkan.", type: "system", is_read: true, created_at: getDateOffset(17) + "T09:00:00Z" },
   { id: "n-2", user_id: "local-user", title: "Utang Budi Jatuh Tempo", message: "Pinjaman sebesar Rp200.000 ke Budi sudah melewati batas tanggal tempo.", type: "debt", is_read: false, created_at: getDateOffset(1) + "T08:00:00Z" },
   { id: "n-3", user_id: "local-user", title: "Tagihan Berulang Masuk", message: "Tagihan IndiHome sebesar Rp350.000 otomatis tercatat bulan ini.", type: "bill", is_read: false, created_at: getDateOffset(3) + "T10:00:00Z" },
+  // Joint account invitation notifications
+  { id: "n-invite-1", user_id: "user-1", title: "Undangan Akun Bersama", message: "Anda diundang untuk menghubungkan akun ke 'Keluarga Budi & Siti'. Klik untuk menerima undangan.", type: "system", is_read: false, created_at: getDateOffset(0) + "T07:00:00Z", action_type: "joint_invite" as any },
+  { id: "n-invite-2", user_id: "user-2", title: "Undangan Akun Bersama", message: "Anda diundang untuk menghubungkan akun ke 'Keluarga Budi & Siti'. Klik untuk menerima undangan.", type: "system", is_read: false, created_at: getDateOffset(0) + "T07:00:00Z", action_type: "joint_invite" as any },
 ];
 
 // Helper to initialize local storage
@@ -174,12 +177,51 @@ const initializeLocalStorage = () => {
 
   checkAndSet("mf_profile", DEFAULT_PROFILE);
   checkAndSet("mf_settings", DEFAULT_SETTINGS);
-  checkAndSet("mf_wallets", DEFAULT_WALLETS);
+
+  // Pre-seed local profiles switcher
+  checkAndSet("mf_profiles_map", {
+    "local-user": DEFAULT_PROFILE,
+    "user-1": { id: "user-1", name: "Budi Santoso (Akun 1)", currency: "Rp", monthly_salary: 8500000, financial_target: 30000000 },
+    "user-2": { id: "user-2", name: "Siti Rahma (Akun 2)", currency: "Rp", monthly_salary: 6000000, financial_target: 20000000 },
+    "user-joint": { id: "user-joint", name: "Keluarga Budi & Siti (Akun Bersama)", currency: "Rp", monthly_salary: 14500000, financial_target: 50000000 },
+  });
+
+  // Pre-seed connection invite link
+  checkAndSet("mf_joint_link", {
+    active: false,
+    jointUserId: "user-joint",
+    user1Id: "user-1",
+    user1Status: "pending",
+    user2Id: "user-2",
+    user2Status: "pending",
+  });
+
+  // Seed wallets including Budi and Siti
+  const defaultWallets = [...DEFAULT_WALLETS];
+  if (!defaultWallets.some((w) => w.user_id === "user-1")) {
+    defaultWallets.push({ id: "w-cash-1", user_id: "user-1", name: "Cash Tunai Budi", type: "cash", balance: 500000, icon: "Wallet", color: "#10B981" }, { id: "w-bca-1", user_id: "user-1", name: "BCA Budi", type: "bank", provider: "BCA", balance: 6500000, icon: "CreditCard", color: "#2563EB" }, { id: "w-cash-2", user_id: "user-2", name: "Cash Tunai Siti", type: "cash", balance: 250000, icon: "Wallet", color: "#10B981" }, { id: "w-mandiri-2", user_id: "user-2", name: "Mandiri Siti", type: "bank", provider: "Mandiri", balance: 4200000, icon: "CreditCard", color: "#F59E0B" });
+  }
+  checkAndSet("mf_wallets", defaultWallets);
+
   checkAndSet("mf_categories", DEFAULT_CATEGORIES);
   checkAndSet("mf_sub_categories", DEFAULT_SUB_CATEGORIES);
-  checkAndSet("mf_transactions", DEFAULT_TRANSACTIONS);
+
+  // Seed transactions including Budi and Siti
+  const defaultTxs = [...DEFAULT_TRANSACTIONS];
+  if (!defaultTxs.some((t) => t.user_id === "user-1")) {
+    defaultTxs.push({ id: "t-1-1", user_id: "user-1", wallet_id: "w-bca-1", category_id: "cat-gaji", type: "income", amount: 8500000, description: "Gaji Bulanan Budi", date: getDateOffset(5) }, { id: "t-1-2", user_id: "user-1", wallet_id: "w-cash-1", category_id: "cat-makanan", sub_category_id: "sub-sarapan", type: "expense", amount: 30000, description: "Makan Bubur Ayam", date: getDateOffset(1) }, { id: "t-2-1", user_id: "user-2", wallet_id: "w-mandiri-2", category_id: "cat-gaji", type: "income", amount: 6000000, description: "Gaji Bulanan Siti", date: getDateOffset(5) }, { id: "t-2-2", user_id: "user-2", wallet_id: "w-cash-2", category_id: "cat-makanan", sub_category_id: "sub-minuman", type: "expense", amount: 45000, description: "Es Kopi Latte", date: getDateOffset(2) });
+  }
+  checkAndSet("mf_transactions", defaultTxs);
+
   checkAndSet("mf_transfers", DEFAULT_TRANSFERS);
-  checkAndSet("mf_budgets", DEFAULT_BUDGETS);
+
+  // Seed budgets including Budi and Siti
+  const defaultBudgets = [...DEFAULT_BUDGETS];
+  if (!defaultBudgets.some((b) => b.user_id === "user-1")) {
+    defaultBudgets.push({ id: "b-1-1", user_id: "user-1", category_id: "cat-makanan", amount: 2000000, month: 6, year: 2026 }, { id: "b-2-1", user_id: "user-2", category_id: "cat-makanan", amount: 1500000, month: 6, year: 2026 });
+  }
+  checkAndSet("mf_budgets", defaultBudgets);
+
   checkAndSet("mf_savings", DEFAULT_SAVINGS);
   checkAndSet("mf_debts", DEFAULT_DEBTS);
   checkAndSet("mf_recurring", DEFAULT_RECURRING);
@@ -202,6 +244,47 @@ const setLS = <T>(key: string, value: T): void => {
 };
 
 // =========================================================================
+// JOINT LINKING HELPERS
+// =========================================================================
+export interface JointLink {
+  active: boolean;
+  jointUserId: string;
+  user1Id: string;
+  user1Status: "pending" | "accepted" | "declined";
+  user2Id: string;
+  user2Status: "pending" | "accepted" | "declined";
+}
+
+export const getJointLink = (): JointLink => {
+  const defaultLink: JointLink = {
+    active: false,
+    jointUserId: "user-joint",
+    user1Id: "user-1",
+    user1Status: "pending",
+    user2Id: "user-2",
+    user2Status: "pending",
+  };
+  const val = localStorage.getItem("mf_joint_link");
+  return val ? JSON.parse(val) : defaultLink;
+};
+
+export const setJointLink = (link: JointLink) => {
+  localStorage.setItem("mf_joint_link", JSON.stringify(link));
+};
+
+const getFilteredLS = <T extends { user_id?: string | null }>(key: string, userId: string): T[] => {
+  const all = getLS<T[]>(key);
+  if (userId === "user-joint") {
+    const link = getJointLink();
+    if (link.active) {
+      return all.filter((item) => item.user_id === "user-1" || item.user_id === "user-2");
+    }
+    return [];
+  }
+  return all.filter((item) => item.user_id === userId);
+};
+
+// =========================================================================
 // REPOSITORY IMPLEMENTATION
 // =========================================================================
 
@@ -211,7 +294,7 @@ export const db = {
   // -----------------------------------------------------------------------
   profile: {
     get: async (userId: string): Promise<UserProfile> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseConfigured && userId !== "local-user" && userId !== "user-1" && userId !== "user-2" && userId !== "user-joint") {
         console.log("[DB] GET profile, user_id:", userId);
         const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
         dbLog("SELECT", "profiles", { userId }, error);
@@ -233,27 +316,48 @@ export const db = {
           return newProfile;
         }
       }
-      // Fallback
+
+      const profilesMap = getLS<Record<string, UserProfile>>("mf_profiles_map");
+      if (profilesMap[userId]) {
+        return profilesMap[userId];
+      }
+      if (userId === "user-1") {
+        return { id: "user-1", name: "Budi Santoso (Akun 1)", currency: "Rp", monthly_salary: 8500000, financial_target: 30000000 };
+      }
+      if (userId === "user-2") {
+        return { id: "user-2", name: "Siti Rahma (Akun 2)", currency: "Rp", monthly_salary: 6000000, financial_target: 20000000 };
+      }
+      if (userId === "user-joint") {
+        return { id: "user-joint", name: "Keluarga Budi & Siti (Akun Bersama)", currency: "Rp", monthly_salary: 14500000, financial_target: 50000000 };
+      }
+
       const profile = localStorage.getItem("mf_profile") ? JSON.parse(localStorage.getItem("mf_profile")!) : DEFAULT_PROFILE;
       return profile;
     },
     update: async (userId: string, updates: Partial<UserProfile>): Promise<UserProfile> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseConfigured && userId !== "local-user" && userId !== "user-1" && userId !== "user-2" && userId !== "user-joint") {
         console.log("[DB] UPDATE profile, user_id:", userId, "updates:", updates);
         const { data, error } = await supabase.from("profiles").update(updates).eq("id", userId).select().single();
         dbLog("UPDATE", "profiles", updates, error);
         if (!error && data) return data;
       }
-      // Fallback
+
       const profile = { ...(await db.profile.get(userId)), ...updates, updated_at: new Date().toISOString() };
-      localStorage.setItem("mf_profile", JSON.stringify(profile));
+
+      const profilesMap = getLS<Record<string, UserProfile>>("mf_profiles_map");
+      profilesMap[userId] = profile;
+      setLS("mf_profiles_map", profilesMap);
+
+      if (userId === "local-user") {
+        localStorage.setItem("mf_profile", JSON.stringify(profile));
+      }
       return profile;
     },
   },
 
   settings: {
     get: async (userId: string): Promise<UserSettings> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseConfigured && userId !== "local-user" && userId !== "user-1" && userId !== "user-2" && userId !== "user-joint") {
         const { data, error } = await supabase.from("user_settings").select("*").eq("user_id", userId).single();
         if (!error && data) return data;
 
@@ -270,15 +374,35 @@ export const db = {
           return newSettings;
         }
       }
-      return localStorage.getItem("mf_settings") ? JSON.parse(localStorage.getItem("mf_settings")!) : DEFAULT_SETTINGS;
+
+      const settingsMap = getLS<Record<string, UserSettings>>("mf_settings_map");
+      if (settingsMap[userId]) {
+        return settingsMap[userId];
+      }
+
+      const defaultSet: UserSettings = {
+        id: "settings-" + userId,
+        user_id: userId,
+        theme: "light",
+        notifications_enabled: true,
+        low_balance_threshold: 500000,
+      };
+      return defaultSet;
     },
     update: async (userId: string, updates: Partial<UserSettings>): Promise<UserSettings> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseConfigured && userId !== "local-user" && userId !== "user-1" && userId !== "user-2" && userId !== "user-joint") {
         const { data, error } = await supabase.from("user_settings").update(updates).eq("user_id", userId).select().single();
         if (!error && data) return data;
       }
+
       const settings = { ...(await db.settings.get(userId)), ...updates };
-      localStorage.setItem("mf_settings", JSON.stringify(settings));
+      const settingsMap = getLS<Record<string, UserSettings>>("mf_settings_map");
+      settingsMap[userId] = settings;
+      setLS("mf_settings_map", settingsMap);
+
+      if (userId === "local-user") {
+        localStorage.setItem("mf_settings", JSON.stringify(settings));
+      }
       return settings;
     },
   },
@@ -295,17 +419,13 @@ export const db = {
         if (!error && data) return data;
         if (error) console.error("[DB] wallets list error:", error);
       }
-      return getLS<Wallet[]>("mf_wallets");
+      return getFilteredLS<Wallet>("mf_wallets", userId);
     },
     create: async (userId: string, wallet: Omit<Wallet, "id" | "user_id">): Promise<Wallet> => {
       if (isSupabaseConfigured && userId !== "local-user") {
         const payload = { ...wallet, user_id: userId };
         console.log("[DB] INSERT wallet:", payload);
-        const { data, error } = await supabase
-          .from("wallets")
-          .insert([payload])
-          .select()
-          .single();
+        const { data, error } = await supabase.from("wallets").insert([payload]).select().single();
         dbLog("INSERT", "wallets", payload, error);
         if (!error && data) return data;
         if (error) throw new Error(`Gagal membuat wallet: ${error.message}`);
@@ -356,7 +476,11 @@ export const db = {
         const { data, error } = await supabase.from("categories").select("*").or(`user_id.eq.${userId},user_id.is.null`);
         if (!error && data) return data;
       }
-      return getLS<Category[]>("mf_categories");
+      const all = getLS<Category[]>("mf_categories");
+      if (userId === "user-joint") {
+        return all.filter((c) => c.user_id === null || c.user_id === "user-1" || c.user_id === "user-2");
+      }
+      return all.filter((c) => c.user_id === null || c.user_id === userId);
     },
     create: async (userId: string, category: Omit<Category, "id" | "user_id">): Promise<Category> => {
       if (isSupabaseConfigured && userId !== "local-user") {
@@ -411,17 +535,22 @@ export const db = {
         if (!error && data) return data;
         if (error) console.error("[DB] transactions list error:", error);
       }
-      return getLS<Transaction[]>("mf_transactions").sort((a, b) => b.date.localeCompare(a.date));
+      const txs = getFilteredLS<Transaction>("mf_transactions", userId);
+      if (userId === "user-joint") {
+        return txs
+          .map((t) => ({
+            ...t,
+            actor_name: t.user_id === "user-1" ? "Budi" : "Siti",
+          }))
+          .sort((a, b) => b.date.localeCompare(a.date)) as any;
+      }
+      return txs.sort((a, b) => b.date.localeCompare(a.date));
     },
     create: async (userId: string, tx: Omit<Transaction, "id" | "user_id">): Promise<Transaction> => {
       if (isSupabaseConfigured && userId !== "local-user") {
         const payload = { ...tx, user_id: userId };
         console.log("[DB] INSERT transaction:", payload);
-        const { data, error } = await supabase
-          .from("transactions")
-          .insert([payload])
-          .select()
-          .single();
+        const { data, error } = await supabase.from("transactions").insert([payload]).select().single();
         dbLog("INSERT", "transactions", payload, error);
         if (!error && data) return data;
         if (error) throw new Error(`Gagal simpan transaksi: ${error.message}`);
@@ -543,7 +672,7 @@ export const db = {
         const { data, error } = await supabase.from("wallet_transfers").select("*").eq("user_id", userId).order("date", { ascending: false });
         if (!error && data) return data;
       }
-      return getLS<WalletTransfer[]>("mf_transfers").sort((a, b) => b.date.localeCompare(a.date));
+      return getFilteredLS<WalletTransfer>("mf_transfers", userId).sort((a, b) => b.date.localeCompare(a.date));
     },
     create: async (userId: string, transfer: Omit<WalletTransfer, "id" | "user_id">): Promise<WalletTransfer> => {
       if (isSupabaseConfigured && userId !== "local-user") {
@@ -587,7 +716,7 @@ export const db = {
         const { data, error } = await supabase.from("budgets").select("*").eq("user_id", userId);
         if (!error && data) return data;
       }
-      return getLS<Budget[]>("mf_budgets");
+      return getFilteredLS<Budget>("mf_budgets", userId);
     },
     upsert: async (userId: string, budget: Omit<Budget, "id" | "user_id">): Promise<Budget> => {
       if (isSupabaseConfigured && userId !== "local-user") {
@@ -634,7 +763,7 @@ export const db = {
         const { data, error } = await supabase.from("savings_goals").select("*").eq("user_id", userId);
         if (!error && data) return data;
       }
-      return getLS<SavingsGoal[]>("mf_savings");
+      return getFilteredLS<SavingsGoal>("mf_savings", userId);
     },
     create: async (userId: string, goal: Omit<SavingsGoal, "id" | "user_id">): Promise<SavingsGoal> => {
       if (isSupabaseConfigured && userId !== "local-user") {
@@ -685,7 +814,7 @@ export const db = {
         const { data, error } = await supabase.from("debts").select("*").eq("user_id", userId).order("created_at", { ascending: false });
         if (!error && data) return data;
       }
-      return getLS<Debt[]>("mf_debts").sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+      return getFilteredLS<Debt>("mf_debts", userId).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
     },
     create: async (userId: string, debt: Omit<Debt, "id" | "user_id" | "status">): Promise<Debt> => {
       if (isSupabaseConfigured && userId !== "local-user") {
@@ -755,7 +884,7 @@ export const db = {
         const { data, error } = await supabase.from("recurring_transactions").select("*").eq("user_id", userId);
         if (!error && data) return data;
       }
-      return getLS<RecurringTransaction[]>("mf_recurring");
+      return getFilteredLS<RecurringTransaction>("mf_recurring", userId);
     },
     create: async (userId: string, rec: Omit<RecurringTransaction, "id" | "user_id" | "status">): Promise<RecurringTransaction> => {
       if (isSupabaseConfigured && userId !== "local-user") {
@@ -812,7 +941,7 @@ export const db = {
         const { data, error } = await supabase.from("notifications").select("*").eq("user_id", userId).order("created_at", { ascending: false });
         if (!error && data) return data;
       }
-      return getLS<AppNotification[]>("mf_notifications").sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+      return getFilteredLS<AppNotification>("mf_notifications", userId).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
     },
     create: async (userId: string, notif: Omit<AppNotification, "id" | "user_id" | "is_read" | "created_at">): Promise<AppNotification> => {
       if (isSupabaseConfigured && userId !== "local-user") {
@@ -995,7 +1124,7 @@ export const ensureDatabaseSeeded = async (userId: string): Promise<void> => {
           ])
           .select()
           .single();
-        
+
         if (catInsertErr) console.error("[Seed] Error insert category:", catInsertErr.message);
 
         if (newCat) {
@@ -1017,10 +1146,10 @@ export const ensureDatabaseSeeded = async (userId: string): Promise<void> => {
     // 3. Seed Default Wallets jika user belum punya wallet
     const { data: walletCheck, error: walletErr } = await supabase.from("wallets").select("id").eq("user_id", userId).limit(1);
     console.log("[Seed] Cek wallet:", walletCheck?.length, "error:", walletErr?.message);
-    
+
     if (!walletCheck || walletCheck.length === 0) {
       console.log("[Seed] Seeding default wallets ke Supabase untuk user:", userId);
-      
+
       const defaultWallets = [
         { user_id: userId, name: "Cash (Tunai)", type: "cash", balance: 0, icon: "Wallet", color: "#10B981" },
         { user_id: userId, name: "Bank BCA", type: "bank", provider: "BCA", balance: 0, icon: "CreditCard", color: "#0066CC" },
@@ -1043,7 +1172,7 @@ export const ensureDatabaseSeeded = async (userId: string): Promise<void> => {
         console.log("[Seed] ✅ Default wallets berhasil dibuat:", defaultWallets.length, "wallet");
       }
     }
-    
+
     console.log("[Seed] ✅ ensureDatabaseSeeded selesai");
   } catch (err) {
     console.error("[Seed] Error in ensureDatabaseSeeded:", err);

@@ -1,9 +1,9 @@
-/** @format */
-
 import React, { useState, useEffect } from "react";
 import { useFinanceStore } from "../../store/financeStore";
 import { useAuthStore } from "../../store/authStore";
 import { useModalStore } from "../../store/modalStore";
+import { useConfirm } from "../../store/confirmStore";
+import { useToastStore } from "../../store/toastStore";
 import type { Budget } from "../../types";
 import { Dialog } from "../ui/dialog";
 import { Button } from "../ui/button";
@@ -23,6 +23,8 @@ export const BudgetConfigModal: React.FC<BudgetConfigModalProps> = ({ isOpen, bu
   const { user } = useAuthStore();
   const { categories, setBudget, deleteBudget } = useFinanceStore();
   const { mode, closeModal } = useModalStore();
+  const confirm = useConfirm();
+  const { showToast } = useToastStore();
 
   const [formData, setFormData] = useState({
     category_id: "",
@@ -86,7 +88,7 @@ export const BudgetConfigModal: React.FC<BudgetConfigModalProps> = ({ isOpen, bu
       });
 
       const categoryName = categories.find((c) => c.id === formData.category_id)?.name;
-      setSuccess(mode === "add" ? `Anggaran ${categoryName} berhasil dibuat!` : `Anggaran ${categoryName} berhasil diperbarui!`);
+      showToast(mode === "add" ? `Anggaran ${categoryName} berhasil dibuat!` : `Anggaran ${categoryName} berhasil diperbarui!`, "success");
 
       setTimeout(() => {
         closeModal();
@@ -101,16 +103,22 @@ export const BudgetConfigModal: React.FC<BudgetConfigModalProps> = ({ isOpen, bu
   const handleDelete = async () => {
     if (!user || !budget) return;
 
-    if (!window.confirm("Hapus anggaran ini?")) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "Hapus Anggaran",
+      message: "Apakah Anda yakin ingin menghapus anggaran kategori ini?",
+      confirmLabel: "Hapus",
+      cancelLabel: "Batal",
+      type: "danger",
+    });
+
+    if (!confirmed) return;
 
     setLoading(true);
     setError("");
 
     try {
       await deleteBudget(user.id, budget.id);
-      setSuccess("Anggaran berhasil dihapus!");
+      showToast("Anggaran berhasil dihapus!", "success");
 
       setTimeout(() => {
         closeModal();

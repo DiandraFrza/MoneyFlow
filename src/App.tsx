@@ -22,23 +22,21 @@ import { ToastContainer } from "./components/ui/ToastContainer";
 import { ConfirmModal } from "./components/modals/ConfirmModal";
 import { ActorPromptModal } from "./components/modals/ActorPromptModal";
 
-
-
 // ============================================================
-// LOADING SCREEN COMPONENT
+// LOADING SCREEN COMPONENT (Swiss Circular Loading)
 // ============================================================
 const LoadingScreen: React.FC<{ message?: string }> = ({ message = "Menyiapkan MoneyFlow Pro..." }) => (
-  <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col items-center justify-center gap-5">
-    {/* Animated Logo */}
+  <div className="min-h-screen bg-[#f4f4f4] flex flex-col items-center justify-center gap-6 select-none">
+    {/* Animated Circular Logo */}
     <div className="relative">
-      <div className="h-20 w-20 rounded-2xl bg-primary flex items-center justify-center text-white shadow-lg">
-        <Wallet className="h-10 w-10" />
+      <div className="h-20 w-20 rounded-full bg-[#ff5722] flex items-center justify-center text-white border-2 border-[#1e1e1e]">
+        <Wallet className="h-9 w-9 stroke-[2.2]" />
       </div>
-      <div className="absolute -inset-2 rounded-3xl border-4 border-primary/20 animate-ping" />
+      <div className="absolute -inset-2 rounded-full border-2 border-[#ff5722]/30 animate-ping pointer-events-none" />
     </div>
-    {/* Spinner */}
-    <div className="h-8 w-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-    <p className="text-sm font-semibold text-text-mutedLight dark:text-text-mutedDark animate-pulse">{message}</p>
+    {/* Circular Spinner */}
+    <div className="h-9 w-9 border-[3.5px] border-[#1e1e1e]/15 border-t-[#ff5722] rounded-full animate-spin" />
+    <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#1e1e1e] animate-pulse">{message}</p>
   </div>
 );
 
@@ -59,7 +57,7 @@ export const App: React.FC = () => {
     }
   }, [activeModal]);
 
-  // 1. Initialize Auth ONCE on mount — wait for session check before rendering anything
+  // 1. Initialize Auth ONCE on mount - wait for session check before rendering anything
   useEffect(() => {
     console.log("[App] Inisialisasi auth...");
     initialize();
@@ -67,10 +65,13 @@ export const App: React.FC = () => {
 
   // 2. Fetch financial data when user.id becomes available or changes
   //    Guard: only fetch if user.id is different from lastFetchedUserId
-  const triggerFetch = useCallback(async (userId: string) => {
-    console.log("[App] Memulai fetch data untuk user:", userId);
-    await fetchData(userId);
-  }, [fetchData]);
+  const triggerFetch = useCallback(
+    async (userId: string) => {
+      console.log("[App] Memulai fetch data untuk user:", userId);
+      await fetchData(userId);
+    },
+    [fetchData],
+  );
 
   useEffect(() => {
     if (user?.id && user.id !== lastFetchedUserId) {
@@ -129,21 +130,11 @@ export const App: React.FC = () => {
 
       {/* Global Modal System */}
       <Suspense fallback={null}>
-        {openedModals["wallet"] && (
-          <WalletConfigModal isOpen={activeModal === "wallet"} wallet={selectedId ? wallets.find((w) => w.id === selectedId) : undefined} />
-        )}
-        {openedModals["budget"] && (
-          <BudgetConfigModal isOpen={activeModal === "budget"} budget={selectedId ? budgets.find((b) => b.id === selectedId) : undefined} />
-        )}
-        {openedModals["debt"] && (
-          <DebtConfigModal isOpen={activeModal === "debt"} debt={selectedId ? debts.find((d) => d.id === selectedId) : undefined} />
-        )}
-        {openedModals["recurring"] && (
-          <RecurringConfigModal isOpen={activeModal === "recurring"} recurring={selectedId ? recurring.find((r) => r.id === selectedId) : undefined} />
-        )}
-        {openedModals["profile"] && (
-          <ProfileConfigModal isOpen={activeModal === "profile"} />
-        )}
+        {openedModals["wallet"] && <WalletConfigModal isOpen={activeModal === "wallet"} wallet={selectedId ? wallets.find((w) => w.id === selectedId) : undefined} />}
+        {openedModals["budget"] && <BudgetConfigModal isOpen={activeModal === "budget"} budget={selectedId ? budgets.find((b) => b.id === selectedId) : undefined} />}
+        {openedModals["debt"] && <DebtConfigModal isOpen={activeModal === "debt"} debt={selectedId ? debts.find((d) => d.id === selectedId) : undefined} />}
+        {openedModals["recurring"] && <RecurringConfigModal isOpen={activeModal === "recurring"} recurring={selectedId ? recurring.find((r) => r.id === selectedId) : undefined} />}
+        {openedModals["profile"] && <ProfileConfigModal isOpen={activeModal === "profile"} />}
       </Suspense>
 
       {/* Global Toast Alerts & Custom Confirmation Modal */}

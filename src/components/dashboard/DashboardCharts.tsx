@@ -11,25 +11,30 @@ interface CashFlowTrendChartProps {
 
 export const CashFlowTrendChart: React.FC<CashFlowTrendChartProps> = ({ data }) => {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
       <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
         <defs>
           <linearGradient id="colorInc" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#10B981" stopOpacity={0.2} />
-            <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+            <stop offset="5%" stopColor="#678C79" stopOpacity={0.22} />
+            <stop offset="95%" stopColor="#678C79" stopOpacity={0} />
           </linearGradient>
           <linearGradient id="colorExp" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#EF4444" stopOpacity={0.2} />
-            <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
+            <stop offset="5%" stopColor="#BA8082" stopOpacity={0.2} />
+            <stop offset="95%" stopColor="#BA8082" stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-        <XAxis dataKey="name" stroke="#94A3B8" fontSize={10} tickLine={false} />
-        <YAxis stroke="#94A3B8" fontSize={10} tickLine={false} axisLine={false} />
-        <Tooltip formatter={(value) => [`Rp ${Number(value).toLocaleString("id-ID")}`]} />
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#CDD4DD" />
+        <XAxis dataKey="name" stroke="#778598" fontSize={10} tickLine={false} />
+        <YAxis stroke="#778598" fontSize={10} tickLine={false} axisLine={false} />
+        <Tooltip
+          formatter={(value) => [`Rp ${Number(value).toLocaleString("id-ID")}`]}
+          contentStyle={{ border: "1px solid #1E1E1E", borderRadius: 0, backgroundColor: "#FAFAFA", boxShadow: "none" }}
+          labelStyle={{ color: "#1E1E1E", fontWeight: 700 }}
+          itemStyle={{ color: "#1E1E1E" }}
+        />
         <Legend iconSize={10} wrapperStyle={{ fontSize: 11, fontWeight: "bold" }} />
-        <Area type="monotone" dataKey="Pemasukan" stroke="#10B981" strokeWidth={2} fillOpacity={1} fill="url(#colorInc)" />
-        <Area type="monotone" dataKey="Pengeluaran" stroke="#EF4444" strokeWidth={2} fillOpacity={1} fill="url(#colorExp)" />
+        <Area type="monotone" dataKey="Pemasukan" stroke="#678C79" strokeWidth={2.5} fillOpacity={1} fill="url(#colorInc)" />
+        <Area type="monotone" dataKey="Pengeluaran" stroke="#BA8082" strokeWidth={2.5} fillOpacity={1} fill="url(#colorExp)" />
       </AreaChart>
     </ResponsiveContainer>
   );

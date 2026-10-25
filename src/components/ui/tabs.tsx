@@ -1,5 +1,17 @@
-import React from 'react';
+import React, { createContext, useContext } from 'react';
 import { cn } from '../../lib/utils';
+
+interface TabsContextType {
+  value: string;
+  onValueChange: (value: string) => void;
+}
+
+const TabsContext = createContext<TabsContextType>({
+  value: '',
+  onValueChange: () => {},
+});
+
+export const useTabsContext = () => useContext(TabsContext);
 
 interface TabsProps {
   value: string;
@@ -10,41 +22,32 @@ interface TabsProps {
 
 export const Tabs: React.FC<TabsProps> = ({ value, onValueChange, children, className }) => {
   return (
-    <div className={cn('w-full flex flex-col gap-4', className)}>
-      {React.Children.map(children, (child) => {
-        if (React.isValidElement(child)) {
-          const typedChild = child as React.ReactElement<any>;
-          return React.cloneElement(typedChild, {
-            value: typedChild.props.value !== undefined ? typedChild.props.value : value,
-            activeValue: value,
-            onValueChange
-          });
-        }
-        return child;
-      })}
-    </div>
+    <TabsContext.Provider value={{ value, onValueChange }}>
+      <div className={cn('w-full flex flex-col gap-4', className)}>
+        {children}
+      </div>
+    </TabsContext.Provider>
   );
 };
 
 interface TabsListProps {
   children: React.ReactNode;
   className?: string;
-  value?: string;
-  onValueChange?: (value: string) => void;
 }
 
-export const TabsList: React.FC<TabsListProps> = ({ children, className, value, onValueChange }) => {
+/**
+ * Swiss Style TabsList
+ * Rules: 1px solid #1e1e1e border, flat #f4f4f4, zero rounded, zero blur
+ */
+export const TabsList: React.FC<TabsListProps> = ({ children, className }) => {
   return (
-    <div className={cn('flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800', className)}>
-      {React.Children.map(children, (child) => {
-        if (React.isValidElement<{ value: string; active?: boolean; onClick?: () => void }>(child)) {
-          return React.cloneElement(child, {
-            active: child.props.value === value,
-            onClick: () => onValueChange?.(child.props.value)
-          });
-        }
-        return child;
-      })}
+    <div
+      className={cn(
+        'flex items-stretch border border-[#1e1e1e] bg-[#f4f4f4] p-0 overflow-x-auto select-none',
+        className
+      )}
+    >
+      {children}
     </div>
   );
 };
@@ -53,17 +56,25 @@ interface TabsTriggerProps {
   value: string;
   children: React.ReactNode;
   className?: string;
-  active?: boolean;
-  onClick?: () => void;
 }
 
-export const TabsTrigger: React.FC<TabsTriggerProps> = ({ children, className, active, onClick }) => {
+/**
+ * Swiss Style TabsTrigger
+ * Rules: sharp corners, color-inversion active state (black bg, white text, orange accent border)
+ */
+export const TabsTrigger: React.FC<TabsTriggerProps> = ({ value, children, className }) => {
+  const { value: activeValue, onValueChange } = useTabsContext();
+  const active = activeValue === value;
+
   return (
     <button
-      onClick={onClick}
+      type="button"
+      onClick={() => onValueChange(value)}
       className={cn(
-        'flex-1 inline-flex items-center justify-center rounded-lg py-2 px-3 text-xs font-semibold transition-all duration-200 text-text-mutedLight dark:text-text-mutedDark select-none btn-pressable',
-        active && 'bg-white text-text-light shadow-soft-sm dark:bg-slate-900 dark:text-text-dark',
+        'flex-1 relative inline-flex items-center justify-center gap-2 py-3 px-4 text-xs font-bold uppercase tracking-wider transition-colors duration-100 border-r border-[#1e1e1e] last:border-r-0 cursor-pointer',
+        active
+          ? 'bg-[#1e1e1e] text-white border-b-2 border-b-[#ff5722]'
+          : 'bg-[#f4f4f4] text-[#555555] hover:bg-[#ebebeb] hover:text-[#1e1e1e]',
         className
       )}
     >
@@ -76,10 +87,10 @@ interface TabsContentProps {
   value: string;
   children: React.ReactNode;
   className?: string;
-  activeValue?: string; // injected
 }
 
-export const TabsContent: React.FC<TabsContentProps> = ({ value, children, className, activeValue }) => {
+export const TabsContent: React.FC<TabsContentProps> = ({ value, children, className }) => {
+  const { value: activeValue } = useTabsContext();
   if (value !== activeValue) return null;
   return <div className={cn('w-full animate-fade-in', className)}>{children}</div>;
 };

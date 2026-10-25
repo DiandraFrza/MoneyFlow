@@ -3,7 +3,15 @@
 import { create } from "zustand";
 import { db, runRecurringEngine, ensureDatabaseSeeded } from "../lib/repository";
 import { useActorStore } from "./actorStore";
+import { useAuthStore } from "./authStore";
 import type { Wallet, Transaction, WalletTransfer, Budget, SavingsGoal, Debt, RecurringTransaction, AppNotification, Category, SubCategory } from "../types";
+
+const assertNotViewer = (actionName: string) => {
+  const auth = useAuthStore.getState();
+  if (auth.activeRole === "viewer") {
+    throw new Error(`Akses ditolak: Peran 'viewer' hanya memiliki akses melihat data (read-only). Tidak dapat ${actionName}.`);
+  }
+};
 
 interface FinanceState {
   wallets: Wallet[];
@@ -29,7 +37,11 @@ interface FinanceState {
 
   // Category actions
   addCategory: (userId: string, category: Omit<Category, "id" | "user_id">) => Promise<void>;
+  updateCategory: (userId: string, id: string, updates: Partial<Category>) => Promise<void>;
+  deleteCategory: (userId: string, id: string) => Promise<void>;
   addSubcategory: (categoryId: string, name: string) => Promise<void>;
+  updateSubcategory: (id: string, name: string) => Promise<void>;
+  deleteSubcategory: (id: string) => Promise<void>;
 
   // Transaction actions
   addTransaction: (userId: string, tx: Omit<Transaction, "id" | "user_id">) => Promise<void>;
@@ -65,7 +77,7 @@ interface FinanceState {
   clearNotifications: (userId: string) => Promise<void>;
 }
 
-export const useFinanceStore = create<FinanceState>((set) => ({
+export const useFinanceStore = create<FinanceState>((set, get) => ({
   wallets: [],
   transactions: [],
   transfers: [],
@@ -110,11 +122,14 @@ export const useFinanceStore = create<FinanceState>((set) => ({
         db.categories.subcategories.list(),
       ]);
 
-      console.log("[Finance] ✅ Data berhasil diambil:", {
+      console.log("[Finance] Data berhasil dimuat:", {
         wallets: wallets.length,
         transactions: transactions.length,
-        categories: categories.length,
-        subcategories: subcategories.length,
+        budgets: budgets.length,
+        savings: savings.length,
+        debts: debts.length,
+        recurring: recurring.length,
+        notifications: notifications.length,
       });
 
       set({
@@ -131,14 +146,15 @@ export const useFinanceStore = create<FinanceState>((set) => ({
         loading: false,
         lastFetchedUserId: userId,
       });
-    } catch (err) {
-      console.error("[Finance] ❌ Error fetchData:", err);
+    } catch (err: any) {
+      console.error("[Finance] ❌ fetchData error:", err.message);
       set({ loading: false });
     }
   },
 
   addWallet: async (userId, wallet) => {
     if (!userId) { console.error("[Finance] addWallet: userId tidak ada"); return; }
+    assertNotViewer("menambah dompet");
     
     let targetUserId = userId;
     if (userId === "user-joint") {
@@ -147,9 +163,16 @@ export const useFinanceStore = create<FinanceState>((set) => ({
       targetUserId = chosenActor;
     }
 
-    console.log("[Finance] addWallet, targetUserId:", targetUserId, "wallet:", wallet);
+    const auth = useAuthStore.getState();
+    const enrichedWallet: Omit<Wallet, "id" | "user_id"> = {
+      ...wallet,
+      workspace_id: wallet.workspace_id || auth.activeWorkspaceId || undefined,
+      is_private: wallet.is_private ?? false,
+    };
+
+    console.log("[Finance] addWallet, targetUserId:", targetUserId, "wallet:", enrichedWallet);
     try {
-      await db.wallets.create(targetUserId, wallet);
+      await db.wallets.create(targetUserId, enrichedWallet);
       const wallets = await db.wallets.list(userId);
       set({ wallets });
       console.log("[Finance] ✅ Wallet berhasil ditambahkan");
@@ -161,6 +184,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   updateWallet: async (userId, id, updates) => {
     if (!userId) { console.error("[Finance] updateWallet: userId tidak ada"); return; }
+    assertNotViewer("mengubah dompet");
     try {
       await db.wallets.update(userId, id, updates);
       const wallets = await db.wallets.list(userId);
@@ -173,6 +197,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   deleteWallet: async (userId, id) => {
     if (!userId) { console.error("[Finance] deleteWallet: userId tidak ada"); return; }
+    assertNotViewer("menghapus dompet");
     try {
       await db.wallets.delete(userId, id);
       const wallets = await db.wallets.list(userId);
@@ -185,19 +210,61 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   addCategory: async (userId, category) => {
     if (!userId) return;
+    assertNotViewer("menambah kategori");
     await db.categories.create(userId, category);
     const categories = await db.categories.list(userId);
     set({ categories });
   },
 
+  updateCategory: async (userId, id, updates) => {
+    if (!userId) return;
+    assertNotViewer("mengubah kategori");
+    await db.categories.update(userId, id, updates);
+    const categories = await db.categories.list(userId);
+    set({ categories });
+  },
+
+  deleteCategory: async (userId, id) => {
+    if (!userId) return;
+    assertNotViewer("menghapus kategori");
+    await db.categories.delete(userId, id);
+    const [categories, subcategories] = await Promise.all([
+      db.categories.list(userId),
+      db.categories.subcategories.list(),
+    ]);
+    set({ categories, subcategories });
+  },
+
   addSubcategory: async (categoryId, name) => {
-    await db.categories.subcategories.create(categoryId, name);
-    const subcategories = await db.categories.subcategories.list();
+    assertNotViewer("menambah subkategori");
+    const userId = get().lastFetchedUserId || "local-user";
+    const newSub = await db.categories.subcategories.create(categoryId, name, userId);
+    const subcategories = await db.categories.subcategories.list(userId);
+    if (!subcategories.some((s) => s.id === newSub.id)) {
+      subcategories.push(newSub);
+    }
+    set({ subcategories });
+  },
+
+  updateSubcategory: async (id, name) => {
+    assertNotViewer("mengubah subkategori");
+    const userId = get().lastFetchedUserId || "local-user";
+    await db.categories.subcategories.update(id, name);
+    const subcategories = await db.categories.subcategories.list(userId);
+    set({ subcategories });
+  },
+
+  deleteSubcategory: async (id) => {
+    assertNotViewer("menghapus subkategori");
+    const userId = get().lastFetchedUserId || "local-user";
+    await db.categories.subcategories.delete(id);
+    const subcategories = await db.categories.subcategories.list(userId);
     set({ subcategories });
   },
 
   addTransaction: async (userId, tx) => {
     if (!userId) { console.error("[Finance] addTransaction: userId tidak ada"); return; }
+    assertNotViewer("menambah transaksi");
     
     let targetUserId = userId;
     if (userId === "user-joint") {
@@ -206,9 +273,18 @@ export const useFinanceStore = create<FinanceState>((set) => ({
       targetUserId = chosenActor;
     }
 
-    console.log("[Finance] addTransaction, targetUserId:", targetUserId, "tx:", tx);
+    const auth = useAuthStore.getState();
+    const currentUser = auth.user;
+    const enrichedTx: Omit<Transaction, "id" | "user_id"> = {
+      ...tx,
+      workspace_id: tx.workspace_id || auth.activeWorkspaceId || undefined,
+      created_by_id: tx.created_by_id || currentUser?.id || targetUserId,
+      created_by_name: tx.created_by_name || currentUser?.name || "Pengguna",
+    };
+
+    console.log("[Finance] addTransaction, targetUserId:", targetUserId, "tx:", enrichedTx);
     try {
-      await db.transactions.create(targetUserId, tx);
+      await db.transactions.create(targetUserId, enrichedTx);
       
       // Refresh semua data yang mungkin berubah
       const [transactions, wallets, savings, debts] = await Promise.all([
@@ -228,6 +304,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   updateTransaction: async (userId, id, updates) => {
     if (!userId) return;
+    assertNotViewer("mengubah transaksi");
     try {
       await db.transactions.update(userId, id, updates);
       const [transactions, wallets] = await Promise.all([
@@ -243,6 +320,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   deleteTransaction: async (userId, id) => {
     if (!userId) return;
+    assertNotViewer("menghapus transaksi");
     try {
       await db.transactions.delete(userId, id);
       const [transactions, wallets] = await Promise.all([
@@ -258,6 +336,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   addTransfer: async (userId, tf) => {
     if (!userId) return;
+    assertNotViewer("melakukan transfer dompet");
     try {
       await db.transfers.create(userId, tf);
       const [transfers, wallets] = await Promise.all([
@@ -273,6 +352,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   setBudget: async (userId, budget) => {
     if (!userId) return;
+    assertNotViewer("mengatur anggaran");
     
     let targetUserId = userId;
     if (userId === "user-joint") {
@@ -288,6 +368,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   deleteBudget: async (userId, id) => {
     if (!userId) return;
+    assertNotViewer("menghapus anggaran");
     await db.budgets.delete(userId, id);
     const budgets = await db.budgets.list(userId);
     set({ budgets });
@@ -295,6 +376,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   addSavingsGoal: async (userId, goal) => {
     if (!userId) return;
+    assertNotViewer("menambah target tabungan");
     
     let targetUserId = userId;
     if (userId === "user-joint") {
@@ -310,6 +392,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   updateSavingsGoal: async (userId, id, updates) => {
     if (!userId) return;
+    assertNotViewer("mengubah target tabungan");
     await db.savings.update(userId, id, updates);
     const savings = await db.savings.list(userId);
     set({ savings });
@@ -317,6 +400,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   deleteSavingsGoal: async (userId, id) => {
     if (!userId) return;
+    assertNotViewer("menghapus target tabungan");
     await db.savings.delete(userId, id);
     const savings = await db.savings.list(userId);
     set({ savings });
@@ -324,6 +408,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   addDebt: async (userId, debt) => {
     if (!userId) return;
+    assertNotViewer("menambah catatan utang/piutang");
     
     let targetUserId = userId;
     if (userId === "user-joint") {
@@ -339,6 +424,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   updateDebt: async (userId, id, updates) => {
     if (!userId) return;
+    assertNotViewer("mengubah catatan utang/piutang");
     await db.debts.update(userId, id, updates);
     const debts = await db.debts.list(userId);
     set({ debts });
@@ -346,6 +432,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   deleteDebt: async (userId, id) => {
     if (!userId) return;
+    assertNotViewer("menghapus catatan utang/piutang");
     await db.debts.delete(userId, id);
     const debts = await db.debts.list(userId);
     set({ debts });
@@ -353,6 +440,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   addRecurring: async (userId, rec) => {
     if (!userId) return;
+    assertNotViewer("menambah transaksi berulang");
     
     let targetUserId = userId;
     if (userId === "user-joint") {
@@ -368,6 +456,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   updateRecurring: async (userId, id, updates) => {
     if (!userId) return;
+    assertNotViewer("mengubah transaksi berulang");
     await db.recurring.update(userId, id, updates);
     const recurring = await db.recurring.list(userId);
     set({ recurring });
@@ -375,6 +464,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
 
   deleteRecurring: async (userId, id) => {
     if (!userId) return;
+    assertNotViewer("menghapus transaksi berulang");
     await db.recurring.delete(userId, id);
     const recurring = await db.recurring.list(userId);
     set({ recurring });

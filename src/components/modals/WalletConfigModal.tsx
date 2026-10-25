@@ -148,8 +148,7 @@ export const WalletConfigModal: React.FC<WalletConfigModalProps> = ({ isOpen, wa
 
   return (
     <Dialog isOpen={isOpen} onClose={closeModal} title={title}>
-      <div className="w-full max-w-md p-6 bg-white dark:bg-slate-900 rounded-lg">
-        <h2 className="text-lg font-bold mb-4">{title}</h2>
+      <div className="w-full">
 
         {mode === "delete" ? (
           // Delete confirmation

@@ -1,60 +1,43 @@
 /** @format */
 
-import React, { useEffect } from "react";
+import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useConfirmStore } from "../../store/confirmStore";
-import { AlertTriangle, Info, CheckCircle2, X } from "lucide-react";
 import { Button } from "../ui/button";
+import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
 
+/**
+ * Swiss Style Confirm Modal
+ * Rules: 2px solid #1e1e1e border, zero blur, zero rounded, sharp buttons
+ */
 export const ConfirmModal: React.FC = () => {
   const { isOpen, title, message, confirmLabel, cancelLabel, type, onConfirm, onCancel } = useConfirmStore();
-
-  // Lock body scroll when open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
-    return () => {
-      document.body.style.overflow = "unset";
-    };
-  }, [isOpen]);
-
-  // Escape key handler
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) onCancel();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onCancel]);
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-          {/* Backdrop with premium blur */}
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 select-none">
+          {/* Backdrop: semi-transparent, no blur */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onCancel}
-            className="fixed inset-0 bg-slate-950/40 backdrop-blur-md"
+            className="fixed inset-0 bg-black/50"
           />
 
-          {/* Modal Container */}
+          {/* Modal Container: Swiss 2px border, flat #fafafa */}
           <motion.div
-            initial={{ scale: 0.95, opacity: 0, y: 15 }}
+            initial={{ scale: 0.96, opacity: 0, y: 15 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 10 }}
-            transition={{ type: "spring", stiffness: 350, damping: 26 }}
-            className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-soft-xl z-10 overflow-hidden flex flex-col p-6 gap-5"
+            exit={{ scale: 0.96, opacity: 0, y: 10 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+            className="relative w-full max-w-sm bg-[#fafafa] border-2 border-[#1e1e1e] z-10 overflow-hidden flex flex-col p-6 gap-5"
           >
-            {/* Close Button */}
+            {/* Square Close Button */}
             <button
               onClick={onCancel}
-              className="absolute right-4 top-4 h-8 w-8 rounded-full bg-slate-50 hover:bg-slate-100 text-text-mutedLight dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-text-mutedDark flex items-center justify-center transition-colors btn-pressable"
+              className="absolute right-4 top-4 h-7 w-7 border border-[#1e1e1e] bg-[#ffffff] text-[#1e1e1e] hover:bg-[#1e1e1e] hover:text-white flex items-center justify-center transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -62,43 +45,43 @@ export const ConfirmModal: React.FC = () => {
             {/* Icon & Title */}
             <div className="flex flex-col items-center text-center gap-3 pt-2">
               <div
-                className={`h-12 w-12 rounded-2xl flex items-center justify-center shadow-soft-sm ${
+                className={`h-12 w-12 border border-[#1e1e1e] flex items-center justify-center ${
                   type === "danger"
-                    ? "bg-red-50 text-danger dark:bg-red-950/20"
+                    ? "bg-[#ffffff] text-[#a53a2b]"
                     : type === "warning"
-                    ? "bg-amber-50 text-warning dark:bg-amber-950/20"
+                    ? "bg-[#ffffff] text-[#9a5a21]"
                     : type === "success"
-                    ? "bg-emerald-50 text-success dark:bg-emerald-950/20"
-                    : "bg-blue-50 text-primary dark:bg-blue-950/20"
+                    ? "bg-[#ffffff] text-[#356342]"
+                    : "bg-[#ffffff] text-[#ff5722]"
                 }`}
               >
                 {type === "danger" || type === "warning" ? (
-                  <AlertTriangle className="h-6 w-6" />
+                  <AlertTriangle className="h-6 w-6 stroke-[2]" />
                 ) : type === "success" ? (
-                  <CheckCircle2 className="h-6 w-6" />
+                  <CheckCircle2 className="h-6 w-6 stroke-[2]" />
                 ) : (
-                  <Info className="h-6 w-6" />
+                  <Info className="h-6 w-6 stroke-[2]" />
                 )}
               </div>
-              <h3 className="text-base font-black text-text-light dark:text-text-dark leading-tight mt-1">{title}</h3>
-              <p className="text-xs text-text-mutedLight dark:text-text-mutedDark leading-normal px-2">{message}</p>
+              <h3 className="text-base font-bold text-[#1e1e1e] leading-tight mt-1 tracking-tight">{title}</h3>
+              <p className="text-xs text-[#555555] leading-relaxed px-2 font-medium">{message}</p>
             </div>
 
             {/* Buttons */}
-            <div className="flex gap-3">
-              <Button variant="outline" onClick={onCancel} className="flex-1 h-11 font-bold text-xs rounded-2xl">
+            <div className="flex gap-2.5">
+              <Button variant="outline" onClick={onCancel} className="flex-1 h-10 font-bold text-xs">
                 {cancelLabel}
               </Button>
               <Button
                 onClick={onConfirm}
-                className={`flex-1 h-11 font-bold text-xs rounded-2xl ${
+                className={`flex-1 h-10 font-bold text-xs ${
                   type === "danger"
-                    ? "bg-danger hover:bg-danger-hover text-white"
+                    ? "bg-[#a53a2b] hover:bg-[#1e1e1e] text-white border border-[#a53a2b]"
                     : type === "warning"
-                    ? "bg-warning hover:bg-warning/90 text-white"
+                    ? "bg-[#9a5a21] hover:bg-[#1e1e1e] text-white border border-[#9a5a21]"
                     : type === "success"
-                    ? "bg-success hover:bg-success/90 text-white"
-                    : "bg-primary hover:bg-primary-hover text-white"
+                    ? "bg-[#356342] hover:bg-[#1e1e1e] text-white border border-[#356342]"
+                    : "bg-[#ff5722] hover:bg-[#1e1e1e] text-white border border-[#ff5722]"
                 }`}
               >
                 {confirmLabel}

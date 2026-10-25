@@ -3,11 +3,14 @@
 import { create } from "zustand";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { db } from "../lib/repository";
-import type { UserProfile, UserSettings } from "../types";
+import type { UserProfile, UserSettings, Workspace, WorkspaceRole } from "../types";
 
 interface AuthState {
   user: UserProfile | null;
   settings: UserSettings | null;
+  workspaces: Workspace[];
+  activeWorkspaceId: string | null;
+  activeRole: WorkspaceRole;
   loading: boolean;
   isLocal: boolean;
   error: string | null;
@@ -19,11 +22,65 @@ interface AuthState {
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   updateSettings: (updates: Partial<UserSettings>) => Promise<void>;
   switchUser: (userId: string) => Promise<void>;
+  createWorkspace: (name: string, type: "personal" | "couple" | "family") => Promise<Workspace | null>;
+  switchWorkspace: (workspaceId: string) => Promise<void>;
+  joinWorkspaceByCode: (code: string) => Promise<boolean>;
+  updateMemberRole: (userId: string, role: WorkspaceRole) => Promise<void>;
 }
+
+const resolveUserWorkspaces = async (user: UserProfile) => {
+  let userWorkspaces = await db.workspaces.list(user.id);
+  if (!userWorkspaces || userWorkspaces.length === 0) {
+    const defaultWs: Workspace = {
+      id: `ws-${user.id}`,
+      name: `${user.name || "Personal"} Space`,
+      type: "personal",
+      owner_id: user.id,
+      invite_code: `INV-${user.id.slice(0, 6).toUpperCase()}`,
+      members: [{ user_id: user.id, name: user.name || "User", role: "owner" }],
+      created_at: new Date().toISOString(),
+    };
+    await db.workspaces.save(defaultWs);
+    userWorkspaces = [defaultWs];
+  }
+
+  const savedWsId = typeof localStorage !== "undefined" ? localStorage.getItem("mf_active_workspace_id") : null;
+  let activeWs = userWorkspaces.find((w) => w.id === savedWsId);
+
+  if (!activeWs) {
+    if (user.id === "user-joint") {
+      activeWs = userWorkspaces.find((w) => w.id === "ws-joint-couple") || userWorkspaces[0];
+    } else {
+      activeWs = userWorkspaces[0];
+    }
+  }
+
+  let activeRole: WorkspaceRole = "viewer";
+  if (activeWs) {
+    if (activeWs.owner_id === user.id) {
+      activeRole = "owner";
+    } else {
+      const member = activeWs.members.find((m) => m.user_id === user.id);
+      activeRole = member?.role || "viewer";
+    }
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("mf_active_workspace_id", activeWs.id);
+    }
+  }
+
+  return {
+    workspaces: userWorkspaces,
+    activeWorkspaceId: activeWs ? activeWs.id : null,
+    activeRole,
+  };
+};
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   settings: null,
+  workspaces: [],
+  activeWorkspaceId: null,
+  activeRole: "owner",
   loading: true,
   isLocal: !isSupabaseConfigured,
   error: null,
@@ -48,15 +105,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           console.log("[Auth] ✅ Session aktif, user_id:", session.user.id);
           const profile = await db.profile.get(session.user.id);
           const settings = await db.settings.get(session.user.id);
+          const wsData = await resolveUserWorkspaces(profile);
           set({
             user: profile,
             settings: settings,
+            ...wsData,
             isLocal: false,
             loading: false,
           });
         } else {
           console.log("[Auth] ❌ Tidak ada session aktif, tampilkan halaman login");
-          set({ user: null, settings: null, isLocal: false, loading: false });
+          set({ user: null, settings: null, workspaces: [], activeWorkspaceId: null, activeRole: "owner", isLocal: false, loading: false });
         }
 
         // 2. Listen to auth state changes (for token refresh, etc.)
@@ -64,7 +123,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           console.log("[Auth] onAuthStateChange event:", event, "user:", newSession?.user?.id);
 
           if (event === "SIGNED_OUT") {
-            set({ user: null, settings: null, isLocal: false, loading: false });
+            set({ user: null, settings: null, workspaces: [], activeWorkspaceId: null, activeRole: "owner", isLocal: false, loading: false });
             return;
           }
 
@@ -76,7 +135,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 console.log("[Auth] Memperbarui user dari event:", event);
                 const p = await db.profile.get(newSession.user.id);
                 const s = await db.settings.get(newSession.user.id);
-                set({ user: p, settings: s, isLocal: false, loading: false });
+                const wsData = await resolveUserWorkspaces(p);
+                set({ user: p, settings: s, ...wsData, isLocal: false, loading: false });
               }
             }
           }
@@ -88,9 +148,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.warn("[Auth] ⚠️ Supabase tidak terkonfigurasi, masuk mode offline");
       const localProfile = await db.profile.get("local-user");
       const localSettings = await db.settings.get("local-user");
+      const wsData = await resolveUserWorkspaces(localProfile);
       set({
         user: localProfile,
         settings: localSettings,
+        ...wsData,
         isLocal: true,
         loading: false,
       });
@@ -107,7 +169,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         console.warn("[Auth] Login mode lokal/guest dipilih");
         const localProfile = await db.profile.get("local-user");
         const localSettings = await db.settings.get("local-user");
-        set({ user: localProfile, settings: localSettings, isLocal: true, loading: false });
+        const wsData = await resolveUserWorkspaces(localProfile);
+        set({ user: localProfile, settings: localSettings, ...wsData, isLocal: true, loading: false });
         return true;
       }
 
@@ -115,9 +178,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         console.warn("[Auth] Login offline (Supabase tidak terkonfigurasi)");
         const localProfile = await db.profile.get("local-user");
         const localSettings = await db.settings.get("local-user");
+        const wsData = await resolveUserWorkspaces(localProfile);
         set({
           user: localProfile,
           settings: localSettings,
+          ...wsData,
           isLocal: true,
           loading: false,
         });
@@ -136,9 +201,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         console.log("[Auth] ✅ Login berhasil, user_id:", data.user.id);
         const profile = await db.profile.get(data.user.id);
         const settings = await db.settings.get(data.user.id);
+        const wsData = await resolveUserWorkspaces(profile);
         set({
           user: profile,
           settings: settings,
+          ...wsData,
           isLocal: false,
           loading: false,
         });
@@ -180,9 +247,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         await new Promise((r) => setTimeout(r, 1500));
         const profile = await db.profile.get(data.user.id);
         const settings = await db.settings.get(data.user.id);
+        const wsData = await resolveUserWorkspaces(profile);
         set({
           user: profile,
           settings: settings,
+          ...wsData,
           isLocal: false,
           loading: false,
         });
@@ -222,15 +291,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         console.log("[Auth] ✅ Logout Supabase berhasil");
       }
 
+      if (typeof localStorage !== "undefined") {
+        localStorage.removeItem("mf_active_workspace_id");
+      }
+
       set({
         user: null,
         settings: null,
+        workspaces: [],
+        activeWorkspaceId: null,
+        activeRole: "owner",
         isLocal: false,
         loading: false,
       });
     } catch (err: any) {
       console.error("[Auth] Logout error:", err.message);
-      set({ error: err.message, loading: false, user: null, settings: null });
+      set({ error: err.message, loading: false, user: null, settings: null, workspaces: [], activeWorkspaceId: null, activeRole: "owner" });
     }
   },
 
@@ -263,10 +339,128 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const profile = await db.profile.get(userId);
       const settings = await db.settings.get(userId);
-      set({ user: profile, settings: settings, loading: false });
+      const wsData = await resolveUserWorkspaces(profile);
+      set({ user: profile, settings: settings, ...wsData, loading: false });
     } catch (err: any) {
       console.error("[Auth] Error switchUser:", err.message);
       set({ error: err.message, loading: false });
     }
+  },
+
+  createWorkspace: async (name: string, type: "personal" | "couple" | "family") => {
+    const currentUser = get().user;
+    if (!currentUser) return null;
+
+    const newWs: Workspace = {
+      id: "ws-" + Math.random().toString(36).substring(2, 9),
+      name: name.trim(),
+      type,
+      owner_id: currentUser.id,
+      invite_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
+      members: [
+        {
+          user_id: currentUser.id,
+          name: currentUser.name || "User",
+          role: "owner",
+        },
+      ],
+      created_at: new Date().toISOString(),
+    };
+
+    await db.workspaces.save(newWs);
+    const updatedWorkspaces = [...get().workspaces, newWs];
+
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("mf_active_workspace_id", newWs.id);
+    }
+
+    set({
+      workspaces: updatedWorkspaces,
+      activeWorkspaceId: newWs.id,
+      activeRole: "owner",
+    });
+
+    return newWs;
+  },
+
+  switchWorkspace: async (workspaceId: string) => {
+    const currentUser = get().user;
+    const ws = get().workspaces.find((w) => w.id === workspaceId);
+    if (!ws || !currentUser) return;
+
+    let role: WorkspaceRole = "viewer";
+    if (ws.owner_id === currentUser.id) {
+      role = "owner";
+    } else {
+      const member = ws.members.find((m) => m.user_id === currentUser.id);
+      role = member?.role || "viewer";
+    }
+
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("mf_active_workspace_id", workspaceId);
+    }
+
+    set({
+      activeWorkspaceId: workspaceId,
+      activeRole: role,
+    });
+  },
+
+  joinWorkspaceByCode: async (code: string) => {
+    const currentUser = get().user;
+    if (!currentUser) return false;
+
+    const ws = await db.workspaces.getByCode(code);
+    if (!ws) return false;
+
+    let member = ws.members.find((m) => m.user_id === currentUser.id);
+    if (!member) {
+      member = {
+        user_id: currentUser.id,
+        name: currentUser.name || "User",
+        role: "editor",
+      };
+      ws.members.push(member);
+      await db.workspaces.save(ws);
+    }
+
+    const userWorkspaces = await db.workspaces.list(currentUser.id);
+    const role: WorkspaceRole = ws.owner_id === currentUser.id ? "owner" : (member.role || "viewer");
+
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("mf_active_workspace_id", ws.id);
+    }
+
+    set({
+      workspaces: userWorkspaces,
+      activeWorkspaceId: ws.id,
+      activeRole: role,
+    });
+
+    return true;
+  },
+
+  updateMemberRole: async (targetUserId: string, role: WorkspaceRole) => {
+    const { user: currentUser, activeWorkspaceId, workspaces, activeRole } = get();
+    if (!currentUser || !activeWorkspaceId) return;
+
+    if (activeRole !== "owner") {
+      throw new Error("Hanya pemilik (owner) yang dapat mengubah peran anggota.");
+    }
+
+    const ws = workspaces.find((w) => w.id === activeWorkspaceId);
+    if (!ws) return;
+
+    const memberIdx = ws.members.findIndex((m) => m.user_id === targetUserId);
+    if (memberIdx === -1) return;
+
+    ws.members[memberIdx].role = role;
+    await db.workspaces.save(ws);
+
+    const updatedWorkspaces = workspaces.map((w) => (w.id === ws.id ? ws : w));
+    set({
+      workspaces: updatedWorkspaces,
+      ...(targetUserId === currentUser.id ? { activeRole: role } : {}),
+    });
   },
 }));

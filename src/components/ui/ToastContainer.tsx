@@ -5,42 +5,62 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useToastStore } from "../../store/toastStore";
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, X } from "lucide-react";
 
+/**
+ * Swiss Style Toast Notification Container
+ * Rules:
+ * • 2px solid #1e1e1e border
+ * • Zero border radius, zero backdrop-blur
+ * • Space Grotesk typography, high-contrast black text
+ * • Color status badge with Swiss border
+ */
 export const ToastContainer: React.FC = () => {
   const { toasts, removeToast } = useToastStore();
 
   return (
-    <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2.5 w-full max-w-sm pointer-events-none px-4 sm:px-0">
+    <div className="fixed top-5 right-5 z-[9999] flex flex-col gap-2.5 w-full max-w-sm pointer-events-none px-4 sm:px-0 select-none">
       <AnimatePresence>
         {toasts.map((toast) => {
-          let icon = <Info className="h-5 w-5 text-blue-500" />;
-          let bgColor = "bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-900/40 text-blue-800 dark:text-blue-200";
+          let icon = <Info className="h-4 w-4 text-[#ff5722]" />;
+          let statusBadge = "INFO";
+          let badgeBorder = "border-[#ff5722] text-[#ff5722]";
 
           if (toast.type === "success") {
-            icon = <CheckCircle2 className="h-5 w-5 text-emerald-500" />;
-            bgColor = "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-200";
+            icon = <CheckCircle2 className="h-4 w-4 text-[#356342]" />;
+            statusBadge = "SUKSES";
+            badgeBorder = "border-[#356342] text-[#356342]";
           } else if (toast.type === "error") {
-            icon = <AlertCircle className="h-5 w-5 text-red-500" />;
-            bgColor = "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900/40 text-red-800 dark:text-red-200";
+            icon = <AlertCircle className="h-4 w-4 text-[#a53a2b]" />;
+            statusBadge = "GAGAL";
+            badgeBorder = "border-[#a53a2b] text-[#a53a2b]";
           } else if (toast.type === "warning") {
-            icon = <AlertTriangle className="h-5 w-5 text-amber-500" />;
-            bgColor = "bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-900/40 text-amber-800 dark:text-amber-200";
+            icon = <AlertTriangle className="h-4 w-4 text-[#9a5a21]" />;
+            statusBadge = "PERINGATAN";
+            badgeBorder = "border-[#9a5a21] text-[#9a5a21]";
           }
 
           return (
             <motion.div
               key={toast.id}
               layout
-              initial={{ opacity: 0, y: -20, scale: 0.9, x: 50 }}
-              animate={{ opacity: 1, y: 0, scale: 1, x: 0 }}
-              exit={{ opacity: 0, scale: 0.9, x: 100, transition: { duration: 0.2 } }}
-              transition={{ type: "spring", stiffness: 350, damping: 25 }}
-              className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-2xl border shadow-soft-md backdrop-blur-md ${bgColor}`}
+              initial={{ opacity: 0, y: -16, x: 20 }}
+              animate={{ opacity: 1, y: 0, x: 0 }}
+              exit={{ opacity: 0, x: 50, transition: { duration: 0.15 } }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="pointer-events-auto flex items-start gap-3 p-3.5 bg-[#fafafa] border-2 border-[#1e1e1e] text-[#1e1e1e]"
             >
               <div className="shrink-0 mt-0.5">{icon}</div>
-              <div className="flex-1 text-xs font-bold leading-normal pr-4">{toast.message}</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 border ${badgeBorder}`}>
+                    {statusBadge}
+                  </span>
+                </div>
+                <p className="text-xs font-bold leading-snug text-[#1e1e1e]">{toast.message}</p>
+              </div>
               <button
                 onClick={() => removeToast(toast.id)}
-                className="shrink-0 text-current opacity-60 hover:opacity-100 transition-opacity p-0.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"
+                className="shrink-0 h-6 w-6 border border-[#1e1e1e] bg-[#ffffff] text-[#1e1e1e] hover:bg-[#1e1e1e] hover:text-white flex items-center justify-center transition-colors"
+                aria-label="Tutup notifikasi"
               >
                 <X className="h-3.5 w-3.5" />
               </button>

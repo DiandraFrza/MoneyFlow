@@ -1,0 +1,997 @@
+/**
+ * ============================================================
+ *    DASHBOARD - SWISS STYLE / MINIMALISM
+ *    MoneyFlow Pro · July Palette (#ff5722)
+ *    ============================================================
+ *    Rules enforced here:
+ *    • NO box-shadow, NO border-radius, NO gradients
+ *    • Visible grid system via 1px #1e1e1e borders
+ *    • Massive editorial typography (Space Grotesk)
+ *    • #ff5722 accent on balance amount & key CTA
+ *    • Color-inversion hover on interactive grid cells
+ *    ============================================================
+ *
+ * @format
+ */
+
+/* ---- Base reset for dashboard scope ---- */
+.mf-dashboard {
+  --mf-bg: #f4f4f4;
+  --mf-surface: #fafafa;
+  --mf-border: #1e1e1e;
+  --mf-ink: #1e1e1e;
+  --mf-muted: #555555;
+  --mf-accent: #ff5722;
+  --mf-accent-dk: #e64a19;
+  --mf-green: #356342;
+  --mf-green-soft: #e6eee8;
+  --mf-red: #a53a2b;
+  --mf-red-soft: #f4e9e6;
+
+  width: 100%;
+  max-width: 1480px;
+  margin: 0 auto;
+  color: var(--mf-ink);
+  font-family: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Swiss style is light-mode only - override dark class on dashboard */
+.dark .mf-dashboard {
+  --mf-bg: #f4f4f4;
+  --mf-surface: #fafafa;
+  --mf-border: #1e1e1e;
+  --mf-ink: #1e1e1e;
+  --mf-muted: #555555;
+  --mf-accent: #ff5722;
+  --mf-green: #356342;
+  --mf-green-soft: #e6eee8;
+  --mf-red: #a53a2b;
+  --mf-red-soft: #f4e9e6;
+  color: var(--mf-ink);
+}
+
+/* Strip ALL radius and shadow within dashboard */
+.mf-dashboard *,
+.mf-dashboard *::before,
+.mf-dashboard *::after {
+  box-sizing: border-box;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.mf-dashboard button,
+.mf-dashboard input {
+  font: inherit;
+}
+
+.mf-dashboard button {
+  color: inherit;
+}
+
+/* ============================================================
+   HEADING - Editorial / Magazine Layout
+   Asymmetric, aligned to bottom, massive type
+   ============================================================ */
+.mf-dashboard-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 36px;
+  padding: 8px 0 22px;
+  border-bottom: 1px solid var(--mf-border);
+}
+
+/* Eyebrow label - uppercase tracking */
+.mf-eyebrow {
+  margin: 0;
+  color: var(--mf-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Massive editorial headline - Swiss hero typography */
+.mf-dashboard-heading h1 {
+  margin: 11px 0 0;
+  color: var(--mf-ink);
+  font-size: clamp(2.6rem, 5.5vw, 5.2rem);
+  font-weight: 700;
+  letter-spacing: -0.075em;
+  line-height: 0.95;
+}
+
+/* Accent sparkle glyph */
+.mf-dashboard-heading h1 span {
+  color: var(--mf-accent);
+}
+
+/* Sub-caption below heading */
+.mf-heading-caption {
+  margin: 12px 0 0;
+  color: var(--mf-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* ============================================================
+   DASHBOARD CONTROLS (Search + Avatar)
+   ============================================================ */
+.mf-dashboard-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+/* Search box - sharp border, no shadow */
+.mf-search {
+  display: flex;
+  width: min(300px, 28vw);
+  min-width: 220px;
+  height: 44px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid var(--mf-border);
+  background: var(--mf-surface);
+  color: var(--mf-muted);
+}
+
+.mf-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--mf-ink);
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.mf-search input::placeholder {
+  color: var(--mf-muted);
+  opacity: 1;
+}
+
+.mf-search-trigger {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* Kbd shortcut badge */
+.mf-search kbd {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--mf-border);
+  background: var(--mf-surface);
+  color: var(--mf-muted);
+  font-size: 0.72rem;
+  font-family: inherit;
+}
+
+/* Avatar - square, accent fill */
+.mf-avatar {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--mf-border);
+  background: var(--mf-accent);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.9rem;
+  transition: background 120ms ease;
+}
+
+.mf-avatar:hover {
+  background: var(--mf-ink);
+}
+
+.mf-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ============================================================
+   CARD LABEL - shared eyebrow for all cards
+   ============================================================ */
+.mf-card-label {
+  margin: 0;
+  color: var(--mf-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ============================================================
+   OVERVIEW GRID - Visible grid: 3 columns separated by borders
+   ============================================================ */
+.mf-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(1.55fr, 1.7fr) repeat(2, minmax(0, 1fr));
+  gap: 0;
+  border-top: 1px solid var(--mf-border);
+  border-left: 1px solid var(--mf-border);
+}
+
+/* Base for all grid children */
+.mf-balance-card,
+.mf-stat-card,
+.mf-section,
+.mf-panel {
+  border: 0;
+  border-right: 1px solid var(--mf-border);
+  border-bottom: 1px solid var(--mf-border);
+  background: var(--mf-surface);
+}
+
+/* ============================================================
+   BALANCE CARD - Hero widget, massive orange amount
+   ============================================================ */
+.mf-balance-card {
+  display: flex;
+  min-height: 240px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 30px 32px 24px;
+}
+
+.mf-balance-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* Big accent-colored balance figure - Swiss hero data */
+.mf-balance-amount {
+  margin: 18px 0 0;
+  color: var(--mf-accent);
+  font-size: clamp(2.4rem, 5.2vw, 5rem);
+  font-weight: 700;
+  letter-spacing: -0.075em;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+/* Balance icon - square, black border */
+.mf-balance-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--mf-border);
+  background: var(--mf-surface);
+  color: var(--mf-ink);
+}
+
+/* Footer stripe at bottom of balance card */
+.mf-balance-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--mf-border);
+  padding-top: 16px;
+}
+
+.mf-balance-note,
+.mf-balance-footer button,
+.mf-text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--mf-ink);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.mf-balance-footer button,
+.mf-text-link {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.mf-balance-footer button:hover,
+.mf-text-link:hover {
+  color: var(--mf-accent);
+}
+
+/* ============================================================
+   STAT CARDS - Income & Expense widgets
+   ============================================================ */
+.mf-stat-card {
+  display: flex;
+  min-height: 240px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 28px;
+}
+
+.mf-stat-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--mf-border);
+  background: var(--mf-surface);
+}
+
+.mf-stat-icon-income {
+  color: var(--mf-green);
+}
+
+.mf-stat-icon-expense {
+  color: var(--mf-red);
+}
+
+/* Stat amount - large, tight tracking */
+.mf-stat-amount {
+  max-width: 100%;
+  margin: auto 0 10px;
+  color: var(--mf-ink);
+  font-size: clamp(1.3rem, 2.4vw, 2.2rem);
+  font-weight: 700;
+  letter-spacing: -0.06em;
+  overflow-wrap: anywhere;
+}
+
+/* Change badge */
+.mf-stat-change {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+/* Positive / negative state colors */
+.mf-positive {
+  color: var(--mf-green);
+}
+.mf-negative {
+  color: var(--mf-red);
+}
+
+/* ============================================================
+   QUICK ACTIONS SECTION
+   ============================================================ */
+.mf-section {
+  margin-top: 28px;
+  padding: 24px 28px 28px;
+}
+
+.mf-section-heading,
+.mf-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.mf-section-heading h2,
+.mf-panel-heading h2 {
+  margin: 0;
+  color: var(--mf-ink);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.mf-section-heading p,
+.mf-panel-heading p {
+  margin: 5px 0 0;
+  color: var(--mf-muted);
+  font-size: 0.78rem;
+}
+
+.mf-section-heading > svg {
+  color: var(--mf-muted);
+}
+
+/* Quick actions grid - 4 columns with border system */
+.mf-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin-top: 18px;
+  border-top: 1px solid var(--mf-border);
+  border-left: 1px solid var(--mf-border);
+}
+
+/* Action button cell - Swiss grid cell with color-inversion hover */
+.mf-action-button {
+  display: flex;
+  min-height: 88px;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 0;
+  border-right: 1px solid var(--mf-border);
+  border-bottom: 1px solid var(--mf-border);
+  background: var(--mf-surface);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+/* Hover: full color inversion (Swiss editorial interaction) */
+.mf-action-button:hover,
+.mf-action-button:focus-visible {
+  transform: none;
+  background: var(--mf-accent);
+  color: #fff;
+}
+
+.mf-action-button:hover strong,
+.mf-action-button:hover small,
+.mf-action-button:hover .mf-action-icon,
+.mf-action-button:focus-visible strong,
+.mf-action-button:focus-visible small,
+.mf-action-button:focus-visible .mf-action-icon {
+  color: #fff;
+}
+
+.mf-action-button:active {
+  background: var(--mf-accent-dk);
+}
+
+/* Action icon - square, bordered, distinct role colors */
+.mf-action-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--mf-border);
+  background: var(--mf-surface);
+  color: var(--mf-ink);
+  transition: transform 120ms ease;
+}
+
+.mf-action-icon-kirim {
+  background: var(--mf-red);
+  color: #ffffff;
+}
+
+.mf-action-icon-terima {
+  background: var(--mf-green);
+  color: #ffffff;
+}
+
+.mf-action-icon-isi {
+  background: var(--mf-accent);
+  color: #ffffff;
+}
+
+.mf-action-icon-dompet {
+  background: #d97706;
+  color: #ffffff;
+}
+
+.mf-action-button strong,
+.mf-action-button small {
+  display: block;
+}
+
+.mf-action-button strong {
+  color: var(--mf-ink);
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.mf-action-button small {
+  margin-top: 4px;
+  color: var(--mf-muted);
+  font-size: 0.69rem;
+}
+
+/* ============================================================
+   CONTENT GRID - Activity list + Chart panel
+   ============================================================ */
+.mf-content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  gap: 0;
+  margin-top: 28px;
+  border-top: 1px solid var(--mf-border);
+  border-left: 1px solid var(--mf-border);
+}
+
+.mf-panel {
+  min-width: 0;
+  min-height: 400px;
+  padding: 26px;
+}
+
+.mf-text-link {
+  flex: 0 0 auto;
+  font-size: 0.76rem;
+}
+
+/* ============================================================
+   ACTIVITY LIST - Bordered row grid
+   ============================================================ */
+.mf-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 290px;
+  margin-top: 20px;
+  padding: 0;
+  border-top: 1px solid var(--mf-border);
+  border-left: 1px solid var(--mf-border);
+  background: var(--mf-surface);
+}
+
+.mf-activity-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 13px;
+  padding: 13px 14px;
+  border: 0;
+  border-right: 1px solid var(--mf-border);
+  border-bottom: 1px solid var(--mf-border);
+  background: var(--mf-surface);
+  transition: background 120ms ease;
+}
+
+.mf-activity-row:hover {
+  transform: none;
+  background: #ebebeb;
+}
+
+/* Activity icon - square, sharp */
+.mf-activity-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--mf-border);
+  background: transparent;
+  color: var(--mf-ink);
+}
+
+/* Activity icons: vibrant status colors matching transaction list */
+.mf-income-bg {
+  background: var(--mf-green);
+  color: #ffffff;
+}
+
+.mf-expense-bg {
+  background: var(--mf-accent);
+  color: #ffffff;
+}
+
+.mf-transfer-bg {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.mf-activity-description {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mf-activity-description strong {
+  overflow: hidden;
+  color: var(--mf-ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mf-activity-description span {
+  overflow: hidden;
+  color: var(--mf-muted);
+  font-size: 0.69rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mf-activity-amount {
+  flex: 0 0 auto;
+  color: var(--mf-ink);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-align: right;
+}
+
+/* Positive amount = green tint */
+.mf-activity-amount.mf-positive {
+  color: var(--mf-green);
+}
+
+/* ============================================================
+   CHART PANEL
+   ============================================================ */
+.mf-chart-badge {
+  padding: 6px 10px;
+  border: 1px solid var(--mf-border);
+  background: var(--mf-surface);
+  color: var(--mf-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.mf-chart-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.mf-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--mf-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Legend dot - square for Swiss style */
+.mf-chart-legend i {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+}
+
+.mf-legend-income {
+  background: var(--mf-green);
+}
+
+.mf-legend-expense {
+  background: var(--mf-accent);
+}
+
+.mf-chart-container {
+  width: 100%;
+  height: 265px;
+  margin-top: 8px;
+}
+
+.mf-chart-loading {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: var(--mf-muted);
+  font-size: 0.84rem;
+}
+
+/* ============================================================
+   EMPTY STATE
+   ============================================================ */
+.mf-empty-state {
+  display: flex;
+  min-height: 270px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  text-align: center;
+}
+
+.mf-empty-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 5px;
+  place-items: center;
+  border: 1px solid var(--mf-border);
+  background: var(--mf-surface);
+  color: var(--mf-ink);
+}
+
+.mf-empty-state strong {
+  color: var(--mf-ink);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.mf-empty-state > span:last-of-type {
+  max-width: 270px;
+  color: var(--mf-muted);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+/* Empty state CTA - solid accent button */
+.mf-empty-state button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 9px 14px;
+  border: 1px solid var(--mf-accent);
+  background: var(--mf-accent);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 700;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.mf-empty-state button:hover {
+  border-color: var(--mf-ink);
+  background: var(--mf-ink);
+}
+
+/* ============================================================
+   FOCUS STYLES
+   ============================================================ */
+.mf-dashboard button:focus-visible,
+.mf-dashboard input:focus-visible {
+  outline: 2px solid var(--mf-border);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   SCREEN-READER UTILITY
+   ============================================================ */
+.mf-dashboard .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+/* ============================================================
+   RESPONSIVE - 1050px breakpoint
+   ============================================================ */
+@media (max-width: 1050px) {
+  .mf-overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mf-balance-card {
+    grid-column: 1 / -1;
+    min-height: 210px;
+  }
+
+  .mf-content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mf-chart-container {
+    height: 280px;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE - 700px breakpoint (mobile)
+   ============================================================ */
+@media (max-width: 700px) {
+  .mf-dashboard-heading {
+    align-items: flex-end;
+    margin-bottom: 22px;
+    padding-bottom: 16px;
+  }
+
+  .mf-dashboard-heading h1 {
+    max-width: 270px;
+    font-size: clamp(2rem, 9vw, 3.2rem);
+  }
+
+  .mf-dashboard-controls {
+    gap: 0;
+  }
+
+  /* Collapsed mobile search */
+  .mf-search {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .mf-search input,
+  .mf-search kbd {
+    display: none;
+  }
+
+  /* Open state - expands to full width */
+  .mf-search.mf-search-open {
+    position: absolute;
+    right: 60px;
+    left: 10px;
+    z-index: 2;
+    width: auto;
+    justify-content: flex-start;
+    padding: 0 14px;
+  }
+
+  .mf-search.mf-search-open input {
+    display: block;
+  }
+
+  .mf-avatar {
+    width: 40px;
+    height: 40px;
+    margin-left: 10px;
+  }
+
+  .mf-heading-caption {
+    max-width: 210px;
+    font-size: 0.8rem;
+  }
+
+  .mf-overview-grid {
+    gap: 0;
+  }
+
+  .mf-balance-card {
+    min-height: 190px;
+    padding: 20px 22px;
+  }
+
+  .mf-balance-amount {
+    font-size: clamp(2rem, 9.5vw, 3rem);
+  }
+
+  .mf-stat-card {
+    min-height: 175px;
+    padding: 16px 18px;
+  }
+
+  .mf-stat-card .mf-card-label {
+    font-size: 0.61rem;
+  }
+
+  .mf-stat-amount {
+    font-size: clamp(1.1rem, 5.8vw, 1.7rem);
+  }
+
+  .mf-section {
+    margin-top: 22px;
+    padding: 18px 16px 20px;
+  }
+
+  .mf-quick-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mf-action-button {
+    min-height: 78px;
+    padding: 12px 10px;
+    gap: 10px;
+  }
+
+  .mf-action-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .mf-action-button strong {
+    font-size: 0.79rem;
+  }
+
+  .mf-action-button small {
+    font-size: 0.64rem;
+  }
+
+  .mf-content-grid {
+    margin-top: 22px;
+  }
+
+  .mf-panel {
+    min-height: 0;
+    padding: 18px 14px;
+  }
+
+  .mf-panel-heading h2 {
+    font-size: 0.94rem;
+  }
+
+  .mf-text-link {
+    font-size: 0.68rem;
+  }
+
+  .mf-activity-list {
+    min-height: 250px;
+  }
+
+  .mf-activity-row {
+    gap: 9px;
+    padding: 11px 8px;
+  }
+
+  .mf-activity-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .mf-activity-description strong {
+    font-size: 0.75rem;
+  }
+
+  .mf-activity-description span {
+    max-width: 130px;
+    font-size: 0.62rem;
+  }
+
+  .mf-activity-amount {
+    max-width: 100px;
+    font-size: 0.67rem;
+    overflow-wrap: anywhere;
+  }
+
+  .mf-chart-container {
+    height: 235px;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE - 390px breakpoint (small phones)
+   ============================================================ */
+@media (max-width: 390px) {
+  .mf-dashboard-heading h1 {
+    font-size: clamp(1.8rem, 10vw, 2.5rem);
+  }
+
+  .mf-balance-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .mf-activity-description span {
+    max-width: 100px;
+  }
+}
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .mf-dashboard *,
+  .mf-dashboard *::before,
+  .mf-dashboard *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

@@ -11,17 +11,79 @@ import { Button } from "../components/ui/button";
 import { BeginnerGuide } from "../components/ui/BeginnerGuide";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
-import { User, Wallet as WalletIcon, Scale, Calendar, Plus, Trash2, PiggyBank, CheckCircle2, Tag } from "lucide-react";
+import { cn } from "../lib/utils";
+import { User, Wallet as WalletIcon, Scale, Calendar, Plus, Trash2, PiggyBank, CheckCircle2, Tag, Users, Copy, Check, Share2, KeyRound } from "lucide-react";
 import { useToastStore } from "../store/toastStore";
 
 export const Settings: React.FC = () => {
-  const { user, updateProfile } = useAuthStore();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const { user, updateProfile, workspaces, activeWorkspaceId, activeRole, createWorkspace, switchWorkspace, joinWorkspaceByCode, updateMemberRole } = useAuthStore();
+  const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
+  const [isCodeCopied, setIsCodeCopied] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
+  const [newWsName, setNewWsName] = useState("");
+  const [newWsType, setNewWsType] = useState<"personal" | "couple" | "family">("couple");
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const joinParam = params.get("join");
+    if (joinParam) {
+      setJoinCode(joinParam);
+    }
+  }, [location.search]);
+
+  const handleCopyInviteCode = () => {
+    if (!activeWorkspace?.invite_code) return;
+    navigator.clipboard.writeText(activeWorkspace.invite_code);
+    setIsCodeCopied(true);
+    showToast("Kode undangan berhasil disalin!", "success");
+    setTimeout(() => setIsCodeCopied(false), 2500);
+  };
+
+  const handleCopyInviteLink = () => {
+    if (!activeWorkspace?.invite_code) return;
+    const link = `${window.location.origin}/settings?join=${activeWorkspace.invite_code}`;
+    navigator.clipboard.writeText(link);
+    showToast("Link undangan berhasil disalin!", "success");
+  };
+
+  const handleJoinWorkspace = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!joinCode.trim()) return;
+    try {
+      const ok = await joinWorkspaceByCode(joinCode.trim());
+      if (ok) {
+        showToast("Berhasil bergabung ke ruang!", "success");
+        setJoinCode("");
+      } else {
+        showToast("Kode undangan tidak ditemukan.", "error");
+      }
+    } catch (err: any) {
+      showToast(err?.message || "Gagal bergabung ke ruang.", "error");
+    }
+  };
+
+  const handleCreateWorkspace = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newWsName.trim()) return;
+    try {
+      const ws = await createWorkspace(newWsName.trim(), newWsType);
+      if (ws) {
+        showToast(`Ruang "${ws.name}" berhasil dibuat!`, "success");
+        setNewWsName("");
+      }
+    } catch (err: any) {
+      showToast(err?.message || "Gagal membuat ruang baru.", "error");
+    }
+  };
   const { wallets, categories, subcategories, budgets, debts, recurring, addWallet, setBudget, addDebt, updateDebt, addRecurring, addCategory, addSubcategory, addTransaction } = useFinanceStore();
   const { openWalletModal, openBudgetModal, openDebtModal, openRecurringModal, openProfileModal } = useModalStore();
   const { showToast } = useToastStore();
 
-  const location = useLocation();
-  const navigate = useNavigate();
+//
+//
 
   const activeTab = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -400,6 +462,219 @@ export const Settings: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Kolaborasi Ruang Keuangan (Workspace Collaboration) */}
+          <Card className="mt-6 border border-[#1e1e1e]">
+            <CardHeader className="border-b border-[#1e1e1e] bg-[#f4f4f4]">
+              <CardTitle className="text-base flex items-center justify-between flex-wrap gap-2">
+                <span className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-[#ff5722]" />
+                  Kolaborasi Ruang Keuangan (Workspace)
+                </span>
+                <span
+                  className={cn(
+                    "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 border border-[#1e1e1e]",
+                    activeRole === "owner" && "bg-[#1e1e1e] text-white",
+                    activeRole === "editor" && "bg-[#ff5722] text-white",
+                    activeRole === "viewer" && "bg-[#ffffff] text-[#1e1e1e]"
+                  )}
+                >
+                  ROLE: {activeRole.toUpperCase()}
+                </span>
+              </CardTitle>
+              <CardDescription>
+                Kelola ruang bersama pasangan/keluarga, kode undangan, serta kontrol peran anggota.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-6 flex flex-col gap-6">
+              {/* Active Workspace Info & Invite Code */}
+              {activeWorkspace && (
+                <div className="p-4 border border-[#1e1e1e] bg-[#fafafa] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#555555] mb-0.5">Ruang Saat Ini</p>
+                    <h4 className="text-base font-bold text-[#1e1e1e] flex items-center gap-2">
+                      {activeWorkspace.name}
+                      <span className="text-[9px] font-semibold uppercase px-1.5 py-0.2 border border-[#1e1e1e] bg-[#ffffff] text-[#555555]">
+                        {activeWorkspace.type}
+                      </span>
+                    </h4>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-xs text-[#555555] font-medium">Kode Undangan:</span>
+                      <code className="px-2 py-0.5 bg-[#ffffff] border border-[#1e1e1e] font-mono font-bold text-xs text-[#ff5722]">
+                        {activeWorkspace.invite_code}
+                      </code>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopyInviteCode}
+                      className="flex-1 sm:flex-none text-xs font-bold gap-1.5 h-9"
+                    >
+                      {isCodeCopied ? <Check className="h-3.5 w-3.5 text-[#356342]" /> : <Copy className="h-3.5 w-3.5" />}
+                      {isCodeCopied ? "Tersalin!" : "Salin Kode"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopyInviteLink}
+                      className="flex-1 sm:flex-none text-xs font-bold gap-1.5 h-9"
+                    >
+                      <Share2 className="h-3.5 w-3.5" />
+                      Salin Link
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Workspace Switcher quick buttons */}
+              {workspaces.length > 1 && (
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#555555] block mb-2">Pilih Ruang Aktif</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {workspaces.map((ws) => {
+                      const isSelected = ws.id === activeWorkspaceId;
+                      return (
+                        <button
+                          key={ws.id}
+                          type="button"
+                          onClick={() => switchWorkspace(ws.id)}
+                          className={cn(
+                            "flex items-center justify-between p-3 border text-left transition-colors cursor-pointer",
+                            isSelected ? "border-2 border-[#1e1e1e] bg-[#1e1e1e] text-white font-bold" : "border-[#1e1e1e] bg-[#ffffff] hover:bg-[#f4f4f4] text-[#1e1e1e]"
+                          )}
+                        >
+                          <span className="text-xs font-bold truncate">{ws.name}</span>
+                          <span className={cn("text-[9px] font-bold uppercase px-1 border", isSelected ? "border-white text-white" : "border-[#1e1e1e] text-[#555555]")}>
+                            {ws.type}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Members List & Role Switcher */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#555555] mb-2.5">
+                  Anggota Ruang ({activeWorkspace?.members?.length || 0})
+                </h4>
+                <div className="flex flex-col gap-2">
+                  {activeWorkspace?.members?.map((member) => {
+                    const isOwner = member.role === "owner" || member.user_id === activeWorkspace.owner_id;
+                    const canManageRole = activeRole === "owner" && !isOwner && member.user_id !== user?.id;
+
+                    return (
+                      <div key={member.user_id} className="p-3 border border-[#1e1e1e] bg-[#fafafa] flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="h-8 w-8 bg-[#1e1e1e] text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                            {member.name.substring(0, 2).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-[#1e1e1e] truncate leading-tight">
+                              {member.name} {member.user_id === user?.id && <span className="text-[#ff5722]">(Anda)</span>}
+                            </p>
+                            {member.email && <span className="text-[10px] text-[#555555] truncate block">{member.email}</span>}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {canManageRole ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-bold uppercase text-[#555555] hidden sm:inline">Peran:</span>
+                              <select
+                                value={member.role}
+                                onChange={async (e) => {
+                                  try {
+                                    await updateMemberRole(member.user_id, e.target.value as any);
+                                    showToast("Peran " + member.name + " diubah menjadi " + e.target.value.toUpperCase(), "success");
+                                  } catch (err: any) {
+                                    showToast(err?.message || "Gagal mengubah peran", "error");
+                                  }
+                                }}
+                                className="h-8 px-2 border border-[#1e1e1e] bg-[#ffffff] text-xs font-bold uppercase cursor-pointer"
+                              >
+                                <option value="editor">Editor (Bisa Catat)</option>
+                                <option value="viewer">Viewer (Hanya Lihat)</option>
+                              </select>
+                            </div>
+                          ) : (
+                            <span
+                              className={cn(
+                                "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 border border-[#1e1e1e]",
+                                member.role === "owner" && "bg-[#1e1e1e] text-white",
+                                member.role === "editor" && "bg-[#ff5722] text-white",
+                                member.role === "viewer" && "bg-[#ffffff] text-[#1e1e1e]"
+                              )}
+                            >
+                              {member.role.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Actions: Join by Invite Code & Create New Workspace */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#1e1e1e] pt-4">
+                {/* Join Workspace */}
+                <form onSubmit={handleJoinWorkspace} className="flex flex-col gap-2.5 p-3.5 border border-[#1e1e1e] bg-[#fafafa]">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-[#1e1e1e] flex items-center gap-1.5">
+                    <KeyRound className="h-3.5 w-3.5 text-[#ff5722]" />
+                    Gabung Ruang dengan Kode
+                  </h5>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Contoh: BUDI-SITI-2026"
+                      value={joinCode}
+                      onChange={(e) => setJoinCode(e.target.value)}
+                      className="h-9 text-xs font-mono uppercase"
+                      required
+                    />
+                    <Button type="submit" size="sm" className="h-9 px-3 text-xs font-bold flex-shrink-0">
+                      Gabung
+                    </Button>
+                  </div>
+                </form>
+
+                {/* Create New Workspace */}
+                <form onSubmit={handleCreateWorkspace} className="flex flex-col gap-2.5 p-3.5 border border-[#1e1e1e] bg-[#fafafa]">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-[#1e1e1e] flex items-center gap-1.5">
+                    <Plus className="h-3.5 w-3.5 text-[#ff5722]" />
+                    Buat Ruang Baru
+                  </h5>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      placeholder="Nama Ruang (e.g. Tabungan Rumah)"
+                      value={newWsName}
+                      onChange={(e) => setNewWsName(e.target.value)}
+                      className="h-9 text-xs flex-1"
+                      required
+                    />
+                    <Select
+                      value={newWsType}
+                      onChange={(e) => setNewWsType(e.target.value as any)}
+                      options={[
+                        { value: "couple", label: "Pasangan" },
+                        { value: "family", label: "Keluarga" },
+                        { value: "personal", label: "Pribadi" },
+                      ]}
+                      className="h-9 text-xs w-full sm:w-28"
+                    />
+                    <Button type="submit" size="sm" className="h-9 px-3 text-xs font-bold flex-shrink-0">
+                      Buat
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ---------------------------------------------------------------------
@@ -501,7 +776,7 @@ export const Settings: React.FC = () => {
                           Edit
                         </button>
                         {/* Prevent deleting if only 1 wallet remains */}
-                        {wallets.length > 1 && (
+                        {activeRole !== "viewer" && wallets.length > 1 && (
                           <button onClick={() => openWalletModal("delete", w.id)} className="p-2 rounded-lg bg-slate-50 hover:bg-red-50 text-text-mutedLight hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-950/20 transition-all btn-pressable">
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -556,7 +831,7 @@ export const Settings: React.FC = () => {
                           </button>
                         )}
                         {catBudget && (
-                          <button onClick={() => openBudgetModal("delete", catBudget.id)} className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/20">
+                          activeRole !== "viewer" && <button onClick={() => openBudgetModal("delete", catBudget.id)} className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/20">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         )}
@@ -697,9 +972,11 @@ export const Settings: React.FC = () => {
                           <button onClick={() => openDebtModal("edit", d.id)} className="px-2 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/20 text-[9px] font-bold">
                             Edit
                           </button>
-                          <button onClick={() => openDebtModal("delete", d.id)} className="p-1.5 rounded-lg bg-slate-50 hover:bg-red-50 text-text-mutedLight hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-950/20 transition-all">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {activeRole !== "viewer" && (
+                            <button onClick={() => openDebtModal("delete", d.id)} className="p-1.5 rounded-lg bg-slate-50 hover:bg-red-50 text-text-mutedLight hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-950/20 transition-all">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -781,9 +1058,11 @@ export const Settings: React.FC = () => {
                         <button onClick={() => openRecurringModal("edit", r.id)} className="px-2 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/20 text-[9px] font-bold">
                           Edit
                         </button>
-                        <button onClick={() => openRecurringModal("delete", r.id)} className="p-2 rounded-lg bg-slate-50 hover:bg-red-50 text-text-mutedLight hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-950/20 transition-all btn-pressable">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {activeRole !== "viewer" && (
+                          <button onClick={() => openRecurringModal("delete", r.id)} className="p-2 rounded-lg bg-slate-50 hover:bg-red-50 text-text-mutedLight hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-950/20 transition-all btn-pressable">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );

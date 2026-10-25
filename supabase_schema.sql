@@ -292,8 +292,10 @@
     if (TG_OP = 'INSERT') then
       if (new.type = 'income') then
         amount_diff := new.amount;
+      elsif (new.type = 'savings') then
+        amount_diff := 0; -- savings does not deduct from wallet
       else
-        amount_diff := -new.amount; -- expense, savings, debt_payment, installment subtracts cash
+        amount_diff := -new.amount; -- expense, debt_payment, installment subtracts cash
       end if;
       update public.wallets set balance = balance + amount_diff where id = new.wallet_id;
     
@@ -302,6 +304,8 @@
       -- Revert old amount
       if (old.type = 'income') then
         amount_diff := -old.amount;
+      elsif (old.type = 'savings') then
+        amount_diff := 0;
       else
         amount_diff := old.amount;
       end if;
@@ -310,6 +314,8 @@
       -- Apply new amount
       if (new.type = 'income') then
         amount_diff := new.amount;
+      elsif (new.type = 'savings') then
+        amount_diff := 0;
       else
         amount_diff := -new.amount;
       end if;
@@ -319,6 +325,8 @@
     elsif (TG_OP = 'DELETE') then
       if (old.type = 'income') then
         amount_diff := -old.amount;
+      elsif (old.type = 'savings') then
+        amount_diff := 0;
       else
         amount_diff := old.amount;
       end if;

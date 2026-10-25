@@ -1,81 +1,96 @@
-/** @type {import('tailwindcss').Config} */
+/**
+ * @format
+ * @type {import('tailwindcss').Config}
+ */
+
 export default {
-  darkMode: 'class',
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  darkMode: "class",
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
       colors: {
+        // Swiss Style / July Palette - #ff5722 as primary accent
         primary: {
-          DEFAULT: '#2563EB',
-          dark: '#1D4ED8',
-          light: '#60A5FA',
+          DEFAULT: "#ff5722", // Smashing Pumpkins
+          dark: "#e64a19", // Crunchy Carrot
+          light: "#ff8a65", // Salmon Nigiri
+          fiery: "#f4511e", // Fiery Glow
+          persimmon: "#ff7043", // Precious Persimmon
         },
+        // Semantic colors - desaturated/monochromatic for Swiss context
         success: {
-          DEFAULT: '#10B981',
-          dark: '#059669',
-          light: '#34D399',
+          DEFAULT: "#356342",
+          dark: "#2a4f35",
+          light: "#5b8766",
         },
         warning: {
-          DEFAULT: '#F59E0B',
-          dark: '#D97706',
-          light: '#FBBF24',
+          DEFAULT: "#9a5a21",
+          dark: "#754318",
+          light: "#b67335",
         },
         danger: {
-          DEFAULT: '#EF4444',
-          dark: '#DC2626',
-          light: '#F87171',
+          DEFAULT: "#a53a2b",
+          dark: "#7d2b21",
+          light: "#c34b38",
         },
+        // Swiss monochromatic background system
         background: {
-          light: '#F8FAFC',
-          dark: '#0F172A',
+          light: "#f4f4f4",
+          dark: "#f4f4f4", // Swiss: always light (no dark mode inversion)
         },
         card: {
-          light: '#FFFFFF',
-          dark: '#1E293B',
+          light: "#fafafa",
+          dark: "#fafafa",
         },
         border: {
-          light: '#E2E8F0',
-          dark: '#334155',
+          light: "#1e1e1e",
+          dark: "#1e1e1e",
         },
         text: {
-          light: '#1E293B',
-          dark: '#F8FAFC',
-          mutedLight: '#64748B',
-          mutedDark: '#94A3B8',
-        }
+          light: "#1e1e1e",
+          dark: "#1e1e1e",
+          mutedLight: "#555555",
+          mutedDark: "#555555",
+        },
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
+        // Swiss editorial grotesque - Space Grotesk first, Inter fallback
+        sans: ["Space Grotesk", "Inter", "ui-sans-serif", "system-ui", "sans-serif"],
       },
+      // Swiss Style: NO box shadows - all elevation via borders
       boxShadow: {
-        'soft-sm': '0 2px 8px -2px rgba(0, 0, 0, 0.05)',
-        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-        'soft-md': '0 10px 25px -5px rgba(0, 0, 0, 0.05)',
+        none: "none",
+        "soft-sm": "none",
+        soft: "none",
+        "soft-md": "none",
       },
+      // Swiss Style: ZERO border-radius - hard 90° corners only
       borderRadius: {
-        'xl': '0.75rem',
-        '2xl': '1rem',
+        none: "0",
+        sm: "0",
+        DEFAULT: "0",
+        md: "0",
+        lg: "0",
+        xl: "0",
+        "2xl": "0",
+        "3xl": "0",
+        full: "0",
       },
       animation: {
-        'fade-in': 'fadeIn 0.2s ease-out',
-        'slide-up': 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+        "fade-in": "fadeIn 0.15s ease-out",
+        "slide-up": "slideUp 0.2s ease-out",
       },
       keyframes: {
         fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
         },
         slideUp: {
-          '0%': { transform: 'translateY(10px)', opacity: '0' },
-          '100%': { transform: 'translateY(0)', opacity: '1' },
-        }
-      }
+          "0%": { transform: "translateY(8px)", opacity: "0" },
+          "100%": { transform: "translateY(0)", opacity: "1" },
+        },
+      },
     },
   },
-  plugins: [
-    require('tailwindcss-animate'),
-  ],
-}
+  plugins: [require("tailwindcss-animate")],
+};

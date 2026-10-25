@@ -1,8 +1,9 @@
 /** @format */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Lightbulb, ChevronDown, ChevronUp, X, Sparkles, Wallet, BarChart3, Search, Tag, Trash2, CreditCard, Repeat2, Users, CircleDollarSign, TrendingUp, Target, BadgeCheck, Plus } from "lucide-react";
+import { useAuthStore } from "../../store/authStore";
 
 interface GuideItem {
   icon: React.ElementType;
@@ -16,186 +17,233 @@ interface BeginnerGuideProps {
 
 const GUIDE_DATA: Record<string, { title: string; subtitle: string; items: GuideItem[] }> = {
   dashboard: {
-    title: "Panduan Pemula — Dashboard",
-    subtitle: "Halaman ini adalah 'mading keuangan' kamu. Seperti papan pengumuman yang menampilkan semua info penting uangmu!",
+    title: "PANDUAN PEMULA - DASHBOARD",
+    subtitle: "Halaman ini adalah mading keuangan Anda yang menampilkan ringkasan saldo, statistik bulanan, dan arus kas.",
     items: [
       {
         icon: CircleDollarSign,
         title: "Total Saldo",
-        description: "Ini kayak isi dompet kamu yang kelihatan semua. Kalau angka di sini besar, berarti uangmu masih banyak! Contoh: Kamu punya Rp2.000.000 dari gaji + tabungan.",
+        description: "Akumulasi saldo nyata dari seluruh dompet, rekening bank, dan e-wallet Anda.",
       },
       {
         icon: BarChart3,
         title: "Pemasukan vs Pengeluaran",
-        description: "Ini kayak pertandingan skor antara uang masuk vs uang keluar bulan ini. Yang bagus itu kalau pemasukan > pengeluaran. Contoh: Gaji Rp5.000.000, belanja cuma Rp3.000.000 → sehat!",
+        description: "Perbandingan uang masuk versus keluar bulan ini. Keuangan sehat menjaga pemasukan di atas pengeluaran.",
       },
       {
         icon: TrendingUp,
-        title: "Grafik Tren",
-        description: "Ini kayak laporan rapor keuangan kamu per hari/minggu. Bisa lihat kapan kamu paling boros. Contoh: Tiap weekend belanja lebih banyak? Bisa keliatan di sini!",
+        title: "Grafik Tren 7 Hari",
+        description: "Pemantauan ritme pengeluaran harian agar Anda dapat mengantisipasi lonjakan belanja mingguan.",
       },
       {
         icon: BadgeCheck,
         title: "Notifikasi Pintar",
-        description: "Kayak alarm yang ngingetin kalau utang mau jatuh tempo, anggaran mau habis, atau tagihan otomatis masuk. Contoh: 'Utang ke Budi jatuh tempo besok!'",
+        description: "Peringatan otomatis saat anggaran menipis, utang mendekati jatuh tempo, atau tagihan rutin tiba.",
       },
     ],
   },
   transactions: {
-    title: "Panduan Pemula — Daftar Transaksi",
-    subtitle: "Halaman ini kayak 'buku kas' digital. Semua uang masuk dan keluar tercatat rapi di sini!",
+    title: "PANDUAN PEMULA - DAFTAR TRANSAKSI",
+    subtitle: "Buku kas digital presisi. Seluruh arus masuk, keluar, dan transfer tercatat terstruktur di sini.",
     items: [
       {
         icon: Plus,
-        title: "Catat Transaksi Baru",
-        description: "Setiap kali kamu beli sesuatu atau dapat uang, catat di sini. Kayak nulis di buku catatan harian. Contoh: 'Beli Nasi Goreng Rp15.000 pakai dompet tunai'.",
+        title: "Catat Transaksi",
+        description: "Setiap transaksi yang dicatat akan langsung menyesuaikan saldo dompet yang bersangkutan.",
       },
       {
         icon: Search,
-        title: "Cari & Filter",
-        description: "Bisa cari transaksi tertentu pakai kata kunci atau filter berdasarkan waktu. Contoh: Mau lihat semua pengeluaran minggu lalu? Tinggal filter aja!",
+        title: "Cari & Filter Presisi",
+        description: "Filter riwayat berdasarkan periode waktu, jenis aliran dana, atau kata kunci deskripsi dan kategori.",
       },
       {
         icon: Tag,
         title: "Kategori & Sub-Kategori",
-        description: "Setiap transaksi punya label. Jadi kamu tahu uang habis buat apa. Contoh: Kategori 'Makanan' → Sub: 'Sarapan', 'Makan Siang', 'Jajanan'.",
+        description: "Strukturkan transaksi ke dalam pos kategori untuk mempermudah evaluasi anggaran bulanan.",
       },
       {
         icon: Trash2,
-        title: "Hapus Transaksi",
-        description: "Salah catat? Bisa dihapus kok. Saldo dompetmu otomatis disesuaikan lagi. Contoh: Kamu salah input Rp50.000, hapus aja, uang balik ke saldo.",
+        title: "Koreksi Transaksi",
+        description: "Penghapusan transaksi akan mengembalikan saldo dompet secara otomatis tanpa perhitungan manual.",
       },
     ],
   },
   reports: {
-    title: "Panduan Pemula — Analisis Keuangan",
-    subtitle: "Halaman ini kayak 'rapor duit'. Kamu bisa lihat nilai keuanganmu apakah sehat atau butuh perbaikan!",
+    title: "PANDUAN PEMULA - ANALISIS KEUANGAN",
+    subtitle: "Evaluasi kesehatan finansial Anda melalui metrik, proporsi kategori, dan tren bulanan.",
     items: [
       {
         icon: BarChart3,
-        title: "Pie Chart Pengeluaran",
-        description: "Lingkaran warna-warni yang nunjukin kemana aja uangmu pergi. Contoh: 40% makanan, 20% transportasi, 15% hiburan.",
+        title: "Proporsi Kategori",
+        description: "Visualisasi porsi belanja untuk mengidentifikasi pos pengeluaran terbesar Anda.",
       },
       {
         icon: BadgeCheck,
-        title: "Skor Kesehatan Keuangan",
-        description: "Nilai 0-100 yang nunjukin seberapa sehat keuanganmu. Di atas 70 = bagus! Contoh: Kalau kamu rajin nabung dan nggak boros, skornya bisa 85+.",
+        title: "Skor Kesehatan Finansial",
+        description: "Indikator otomatis berbasis rasio tabungan, kestabilan belanja, dan pengelolaan utang.",
       },
       {
         icon: TrendingUp,
-        title: "Tren Bulanan",
-        description: "Grafik yang nunjukin apakah pengeluaranmu naik atau turun tiap bulan. Contoh: Bulan ini lebih hemat Rp500.000 dari bulan lalu → garis turun = bagus!",
+        title: "Tren Arus Kas Bulanan",
+        description: "Perbandingan performa keuangan dari bulan ke bulan untuk memastikan efisiensi tabungan.",
       },
       {
         icon: Target,
-        title: "Target & Budget",
-        description: "Bisa lihat apakah anggaran tiap kategori masih aman atau sudah melewati batas. Contoh: Budget makan Rp2jt, sudah pakai Rp1.8jt → hati-hati!",
+        title: "Batas Anggaran",
+        description: "Pemantauan real-time terhadap limit belanja per kategori sebelum anggaran terlampaui.",
       },
     ],
   },
   settings: {
-    title: "Panduan Pemula — Pengaturan",
-    subtitle: "Halaman ini kayak 'ruang kontrol'. Kamu bisa atur dompet, utang, anggaran, dan semua pengaturan aplikasi di sini!",
+    title: "PANDUAN PEMULA - PENGATURAN",
+    subtitle: "Pusat kendali konfigurasi: dompet, limit anggaran, utang/piutang, tagihan rutin, dan kategori.",
     items: [
       {
         icon: Wallet,
         title: "Kelola Dompet",
-        description: "Daftar semua 'tempat uang' kamu. Bisa tunai, bank, atau e-wallet. Contoh: Dompet Tunai (Rp200.000), BCA (Rp5.000.000), GoPay (Rp150.000).",
+        description: "Daftarkan rekening bank, dompet tunai, maupun e-wallet dengan saldo terpisah yang presisi.",
       },
       {
         icon: BarChart3,
-        title: "Anggaran Bulanan",
-        description: "Batasi pengeluaran per kategori biar nggak kebablasan. Contoh: Makanan max Rp2jt/bulan, Hiburan max Rp500rb/bulan.",
+        title: "Limit Anggaran",
+        description: "Tetapkan batas maksimal pengeluaran bulanan per kategori untuk mengontrol gaya hidup.",
       },
       {
         icon: CreditCard,
-        title: "Catat Utang & Piutang",
-        description: "Catat siapa yang utang ke kamu, atau kamu utang ke siapa. Contoh: 'Pinjam Rp300.000 ke Budi, jatuh tempo tgl 15'.",
+        title: "Sistem Utang & Cicilan",
+        description: "Catat utang atau piutang dengan nominal cicilan dan pantau status pelunasannya.",
       },
       {
         icon: Repeat2,
-        title: "Transaksi Berulang",
-        description: "Tagihan otomatis yang masuk rutin setiap bulan. Contoh: 'Internet Rp350.000 setiap tanggal 5' — otomatis tercatat!",
+        title: "Transaksi Rutin",
+        description: "Jadwalkan tagihan bulanan (listrik, internet, sewa) agar otomatis tercatat pada tanggalnya.",
       },
       {
         icon: Users,
-        title: "Akun Bersama (Joint Account)",
-        description: "Hubungkan akun dengan pasangan/keluarga. Semua transaksi tercatat bersama! Contoh: Akun Budi + Siti → lihat gabungan keuangan keluarga.",
+        title: "Akun Bersama (Joint)",
+        description: "Hubungkan akun dengan pasangan untuk mengelola keuangan keluarga dalam satu sistem.",
       },
     ],
   },
 };
 
 export const BeginnerGuide: React.FC<BeginnerGuideProps> = ({ pageKey }) => {
+  const { user } = useAuthStore();
   const [isOpen, setIsOpen] = useState(false);
-  const [isDismissed, setIsDismissed] = useState(() => {
-    return localStorage.getItem(`guide_dismissed_${pageKey}`) === "true";
-  });
+  const [isVisible, setIsVisible] = useState(true);
+
+  // -------------------------------------------------------------------------
+  // Logika: Panduan aktif selama 7 hari pertama akun.
+  // Jika di-close sebelum 7 hari, akan muncul lagi setelah 12 jam (tidak hilang selamanya).
+  // Jika akun sudah > 7 hari aktif, panduan hilang permanen.
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    // 1. Hitung usia akun
+    let firstSeen = localStorage.getItem("mf_account_first_seen");
+    if (!firstSeen) {
+      firstSeen = user?.created_at || new Date().toISOString();
+      localStorage.setItem("mf_account_first_seen", firstSeen);
+    }
+
+    const accountAgeMs = Date.now() - new Date(firstSeen).getTime();
+    const accountAgeDays = accountAgeMs / (1000 * 60 * 60 * 24);
+
+    // Jika akun sudah aktif lebih dari 7 hari (1 minggu), sembunyikan selamanya
+    if (accountAgeDays >= 7) {
+      setIsVisible(false);
+      return;
+    }
+
+    // Jika akun masih baru (< 7 hari), periksa apakah baru saja di-close sementara
+    const dismissedAtStr = localStorage.getItem(`guide_dismissed_at_${pageKey}`);
+    if (dismissedAtStr) {
+      const dismissedAt = parseInt(dismissedAtStr, 10);
+      const hoursSinceDismiss = (Date.now() - dismissedAt) / (1000 * 60 * 60);
+
+      // Muncul kembali setelah 12 jam jika belum lewat 7 hari
+      if (hoursSinceDismiss < 12) {
+        setIsVisible(false);
+        return;
+      } else {
+        // Sudah lewat 12 jam, hapus dismiss sementara agar panduan muncul kembali
+        localStorage.removeItem(`guide_dismissed_at_${pageKey}`);
+      }
+    }
+
+    setIsVisible(true);
+  }, [pageKey, user?.created_at]);
+
+  const handleDismiss = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsVisible(false);
+    // Simpan timestamp di-close agar muncul lagi setelah 12 jam (selama akun < 7 hari)
+    localStorage.setItem(`guide_dismissed_at_${pageKey}`, Date.now().toString());
+  };
 
   const data = GUIDE_DATA[pageKey];
-  if (!data || isDismissed) return null;
+  if (!data || !isVisible) return null;
 
   return (
-    <div className="mb-6">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="relative overflow-hidden rounded-2xl border border-amber-200/60 dark:border-amber-800/30 bg-gradient-to-br from-amber-50/80 via-yellow-50/60 to-orange-50/40 dark:from-amber-950/30 dark:via-yellow-950/20 dark:to-orange-950/10 shadow-soft-sm">
-        {/* Decorative sparkle */}
-        <div className="absolute -top-6 -right-6 h-24 w-24 rounded-full bg-amber-300/10 blur-2xl" />
-        <div className="absolute -bottom-4 -left-4 h-16 w-16 rounded-full bg-yellow-300/10 blur-xl" />
-
-        {/* Header */}
-        <div onClick={() => setIsOpen(!isOpen)} className="relative flex items-center justify-between gap-3 px-5 py-3.5 cursor-pointer hover:bg-amber-100/30 dark:hover:bg-amber-900/10 transition-colors">
+    <div className="mb-6 select-none">
+      <div className="border border-[#1e1e1e] bg-[#fafafa]">
+        {/* Header Bar */}
+        <div onClick={() => setIsOpen(!isOpen)} className="flex items-center justify-between gap-4 px-5 py-3.5 cursor-pointer bg-[#f4f4f4] hover:bg-[#ebebeb] transition-colors">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-9 w-9 shrink-0 rounded-xl bg-amber-400/20 dark:bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400">
-              <Lightbulb className="h-4.5 w-4.5" />
+            {/* Square Icon Badge */}
+            <div className="h-8 w-8 shrink-0 border border-[#1e1e1e] bg-[#ff5722] text-white flex items-center justify-center">
+              <Lightbulb className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-xs font-black text-amber-800 dark:text-amber-300 truncate">{data.title}</h3>
-              {!isOpen && <p className="text-[10px] text-amber-600/80 dark:text-amber-400/60 truncate mt-0.5">{data.subtitle}</p>}
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold text-[#1e1e1e] tracking-tight">{data.title}</h3>
+                <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border border-[#1e1e1e] bg-[#ffffff] text-[#ff5722] hidden sm:inline-block">Aktif 7 Hari</span>
+              </div>
+              {!isOpen && <p className="text-[11px] text-[#555555] font-medium truncate mt-0.5">{data.subtitle}</p>}
             </div>
           </div>
 
+          {/* Action buttons (Sharp, Swiss Style) */}
           <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsDismissed(true);
-                localStorage.setItem(`guide_dismissed_${pageKey}`, "true");
-              }}
-              className="h-7 w-7 rounded-lg bg-amber-200/40 hover:bg-amber-300/50 dark:bg-amber-800/30 dark:hover:bg-amber-800/50 flex items-center justify-center text-amber-600 dark:text-amber-400 transition-colors"
-              title="Sembunyikan panduan"
-            >
+            <button onClick={handleDismiss} className="h-7 w-7 border border-[#1e1e1e] bg-[#ffffff] text-[#1e1e1e] hover:bg-[#1e1e1e] hover:text-white flex items-center justify-center transition-colors" title="Tutup sementara (muncul lagi setelah beberapa waktu)">
               <X className="h-3.5 w-3.5" />
             </button>
-            <div className="h-7 w-7 rounded-lg bg-amber-200/40 dark:bg-amber-800/30 flex items-center justify-center text-amber-600 dark:text-amber-400">{isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}</div>
+            <button type="button" className="h-7 w-7 border border-[#1e1e1e] bg-[#ffffff] text-[#1e1e1e] hover:bg-[#1e1e1e] hover:text-white flex items-center justify-center transition-colors">
+              {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </button>
           </div>
         </div>
 
-        {/* Content */}
+        {/* Content Panel */}
         <AnimatePresence>
           {isOpen && (
-            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 300, damping: 28 }} className="overflow-hidden">
-              <div className="px-5 pb-5">
-                <p className="text-[11px] text-amber-700/80 dark:text-amber-300/70 mb-4 leading-relaxed">{data.subtitle}</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18, ease: "easeInOut" }} className="overflow-hidden border-t border-[#1e1e1e]">
+              <div className="p-5">
+                <p className="text-xs text-[#555555] font-medium mb-4 leading-relaxed">{data.subtitle}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 border-t border-l border-[#1e1e1e]">
                   {data.items.map((item, i) => (
-                    <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }} className="flex gap-3 p-3 rounded-xl bg-white/60 dark:bg-slate-900/40 border border-amber-100/60 dark:border-amber-800/20">
-                      <div className="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400">{React.createElement(item.icon, { className: "h-4 w-4" })}</div>
+                    <div key={i} className="p-4 bg-[#ffffff] border-r border-b border-[#1e1e1e] flex gap-3.5 items-start hover:bg-[#f9f9f9] transition-colors">
+                      <div className="h-8 w-8 shrink-0 border border-[#1e1e1e] bg-[#fafafa] flex items-center justify-center text-[#ff5722] mt-0.5">{React.createElement(item.icon, { className: "h-4 w-4" })}</div>
                       <div className="min-w-0">
-                        <h4 className="text-[11px] font-bold text-amber-900 dark:text-amber-200">{item.title}</h4>
-                        <p className="text-[10px] text-amber-700/70 dark:text-amber-400/60 leading-relaxed mt-1">{item.description}</p>
+                        <h4 className="text-xs font-bold text-[#1e1e1e] tracking-tight">{item.title}</h4>
+                        <p className="text-[11px] text-[#555555] font-normal leading-relaxed mt-1">{item.description}</p>
                       </div>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
-                <div className="mt-4 flex items-center gap-2 text-[10px] text-amber-600/60 dark:text-amber-400/40">
-                  <Sparkles className="h-3 w-3" />
-                  <span>Klik tombol X di pojok kanan untuk menyembunyikan panduan ini selamanya.</span>
+                <div className="mt-4 flex items-center justify-between text-[10px] text-[#777777] font-medium pt-2 border-t border-[#e5e5e5]">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="h-3 w-3 text-[#ff5722]" />
+                    Panduan akan otomatis berhenti muncul setelah akun Anda aktif lebih dari 7 hari.
+                  </span>
+                  <button onClick={handleDismiss} className="text-[10px] font-bold text-[#1e1e1e] hover:text-[#ff5722] underline cursor-pointer uppercase tracking-wider">
+                    Tutup Sekarang
+                  </button>
                 </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
+      </div>
     </div>
   );
 };

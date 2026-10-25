@@ -130,14 +130,29 @@ export const useSmartAlerts = (): SmartAlert[] => {
         }
       });
 
-    // Check pending borrowed debts
+    // Check pending borrowed debts (hanya yang belum lunas dan belum dicicil untuk periode ini)
     debts
-      .filter((d) => d.type === "borrowed" && d.status === "pending" && d.due_date)
+      .filter((d) => d.type === "borrowed" && d.status === "pending" && d.remaining_amount > 0 && d.due_date)
       .forEach((d) => {
+        // Jika sudah lunas atau sisa habis, mutlak abaikan
+        if (d.remaining_amount <= 0 || d.status === "paid") return;
+
+        // Jika cicilan untuk periode jatuh tempo ini sudah dibayar, abaikan notifikasi
+        if (d.last_payment_date) {
+          const lastPayDate = new Date(d.last_payment_date + "T12:00:00");
+          const dueDate = new Date(d.due_date! + "T12:00:00");
+          if (
+            lastPayDate.getFullYear() === dueDate.getFullYear() &&
+            lastPayDate.getMonth() === dueDate.getMonth()
+          ) {
+            return; // Cicilan periode ini sudah dibayar, tidak ada notifikasi jatuh tempo
+          }
+        }
+
         const dueTime = new Date(d.due_date! + "T12:00:00").getTime();
         if (dueTime >= todayTime && dueTime <= threeDaysFromNow) {
           activeAlerts.push({
-            id: `alert-debt-due-${d.id}`,
+            id: `alert-debt-due-${d.id}-${d.due_date}`,
             type: "debt",
             title: "Pinjaman Jatuh Tempo",
             message: `Utang Anda ke ${d.person_name} sebesar Rp${d.remaining_amount.toLocaleString("id-ID")} jatuh tempo pada ${d.due_date}.`,

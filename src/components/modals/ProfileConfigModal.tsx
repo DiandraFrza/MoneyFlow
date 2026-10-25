@@ -77,8 +77,7 @@ export const ProfileConfigModal: React.FC<ProfileConfigModalProps> = ({ isOpen }
 
   return (
     <Dialog isOpen={isOpen} onClose={closeModal} title="Edit Profil">
-      <div className="w-full max-w-md p-6 bg-white dark:bg-slate-900 rounded-lg">
-        <h2 className="text-lg font-bold mb-4">Edit Profil</h2>
+      <div className="w-full">
 
         <form onSubmit={handleSave} className="space-y-4">
           <div className="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg text-xs text-blue-800 dark:text-blue-200 mb-2 leading-relaxed">

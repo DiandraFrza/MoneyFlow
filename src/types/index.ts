@@ -13,6 +13,25 @@ export interface UserProfile {
   updated_at?: string;
 }
 
+export type WorkspaceRole = "owner" | "editor" | "viewer";
+
+export interface WorkspaceMember {
+  user_id: string;
+  name: string;
+  email?: string;
+  role: WorkspaceRole;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  type: "personal" | "couple" | "family";
+  owner_id: string;
+  invite_code: string;
+  members: WorkspaceMember[];
+  created_at?: string;
+}
+
 export interface UserSettings {
   id: string;
   user_id: string;
@@ -32,6 +51,8 @@ export interface Wallet {
   balance: number;
   icon: string; // lucide icon name
   color: string; // hex color
+  workspace_id?: string;
+  is_private?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -66,6 +87,10 @@ export interface Transaction {
   description?: string;
   date: string; // YYYY-MM-DD
   receipt_url?: string;
+  receipt_urls?: string[]; // Up to 8 receipt photos
+  workspace_id?: string;
+  created_by_id?: string;
+  created_by_name?: string;
   created_at?: string;
 }
 
@@ -111,6 +136,16 @@ export interface SavingsGoal {
   updated_at?: string;
 }
 
+export interface DebtPayment {
+  id: string;
+  debt_id: string;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  wallet_id?: string;
+  note?: string;
+  created_at?: string;
+}
+
 export interface Debt {
   id: string;
   user_id: string;
@@ -121,6 +156,10 @@ export interface Debt {
   due_date?: string; // YYYY-MM-DD
   status: "pending" | "paid";
   description?: string;
+  interest_rate?: number;
+  installment_amount?: number;
+  last_payment_date?: string;
+  payments?: DebtPayment[];
   created_at?: string;
   updated_at?: string;
 }

@@ -6,12 +6,19 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   error?: string;
 }
 
+/**
+ * Swiss Style Input
+ * Rules: NO border-radius, NO shadow, NO ring
+ * Border: 1px solid #1e1e1e
+ * Focus: border-color → #ff5722 (accent)
+ * Error: border-color → #a53a2b
+ */
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type = 'text', label, error, ...props }, ref) => {
     return (
       <div className="w-full flex flex-col gap-1.5">
         {label && (
-          <label className="text-xs font-semibold text-text-mutedLight dark:text-text-mutedDark tracking-wide">
+          <label className="text-xs font-bold text-[#555555] tracking-[0.08em] uppercase">
             {label}
           </label>
         )}
@@ -19,13 +26,23 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           type={type}
           ref={ref}
           className={cn(
-            'flex h-11 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-text-light transition-all placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900/60 dark:text-text-dark dark:focus:ring-primary/10',
-            error && 'border-danger focus:ring-danger/20 focus:border-danger dark:border-danger',
+            // Swiss: sharp border, flat background, no radius, no shadow/ring
+            'flex h-11 w-full px-4 py-2 text-sm',
+            'border border-[#1e1e1e] bg-[#fafafa] text-[#1e1e1e]',
+            'font-medium placeholder:text-[#888888] placeholder:font-normal',
+            'transition-[border-color] duration-100',
+            'focus:outline-none focus:border-[#ff5722]',
+            'disabled:cursor-not-allowed disabled:opacity-40',
+            error && 'border-[#a53a2b] focus:border-[#a53a2b]',
             className
           )}
           {...props}
         />
-        {error && <span className="text-xs text-danger font-medium mt-0.5">{error}</span>}
+        {error && (
+          <span className="text-xs font-semibold text-[#a53a2b] mt-0.5 uppercase tracking-wider">
+            {error}
+          </span>
+        )}
       </div>
     );
   }
@@ -42,20 +59,30 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     return (
       <div className="w-full flex flex-col gap-1.5">
         {label && (
-          <label className="text-xs font-semibold text-text-mutedLight dark:text-text-mutedDark tracking-wide">
+          <label className="text-xs font-bold text-[#555555] tracking-[0.08em] uppercase">
             {label}
           </label>
         )}
         <textarea
           ref={ref}
           className={cn(
-            'flex min-h-[80px] w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-text-light transition-all placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900/60 dark:text-text-dark dark:focus:ring-primary/10',
-            error && 'border-danger focus:ring-danger/20 focus:border-danger dark:border-danger',
+            'flex min-h-[80px] w-full px-4 py-3 text-sm',
+            'border border-[#1e1e1e] bg-[#fafafa] text-[#1e1e1e]',
+            'font-medium placeholder:text-[#888888] placeholder:font-normal',
+            'transition-[border-color] duration-100',
+            'focus:outline-none focus:border-[#ff5722]',
+            'disabled:cursor-not-allowed disabled:opacity-40',
+            'resize-y',
+            error && 'border-[#a53a2b] focus:border-[#a53a2b]',
             className
           )}
           {...props}
         />
-        {error && <span className="text-xs text-danger font-medium mt-0.5">{error}</span>}
+        {error && (
+          <span className="text-xs font-semibold text-[#a53a2b] mt-0.5 uppercase tracking-wider">
+            {error}
+          </span>
+        )}
       </div>
     );
   }

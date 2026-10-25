@@ -4,7 +4,7 @@
 // Coordinates data between UI/State and Supabase or LocalStorage fallback
 
 import { supabase, isSupabaseConfigured } from "./supabase";
-import type { UserProfile, UserSettings, Wallet, Category, SubCategory, Transaction, WalletTransfer, Budget, SavingsGoal, Debt, RecurringTransaction, AppNotification, FinancialHealthLog } from "../types";
+import type { UserProfile, UserSettings, Wallet, Category, SubCategory, Transaction, WalletTransfer, Budget, SavingsGoal, Debt, RecurringTransaction, AppNotification, FinancialHealthLog, Workspace } from "../types";
 
 // =========================================================================
 // DEBUG HELPER
@@ -167,6 +167,55 @@ const DEFAULT_NOTIFICATIONS: AppNotification[] = [
   { id: "n-invite-2", user_id: "user-2", title: "Undangan Akun Bersama", message: "Anda diundang untuk menghubungkan akun ke 'Keluarga Budi & Siti'. Klik untuk menerima undangan.", type: "system", is_read: false, created_at: getDateOffset(0) + "T07:00:00Z", action_type: "joint_invite" as any },
 ];
 
+export const DEFAULT_WORKSPACES: Workspace[] = [
+  {
+    id: "ws-personal-local",
+    name: "Ruang Pribadi",
+    type: "personal",
+    owner_id: "local-user",
+    invite_code: "PERS-LOCAL",
+    members: [
+      { user_id: "local-user", name: "Pengguna MoneyFlow", role: "owner" },
+    ],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "ws-personal-user1",
+    name: "Pribadi Budi",
+    type: "personal",
+    owner_id: "user-1",
+    invite_code: "BUDI-PERS",
+    members: [
+      { user_id: "user-1", name: "Budi Santoso (Akun 1)", role: "owner" },
+    ],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "ws-personal-user2",
+    name: "Pribadi Siti",
+    type: "personal",
+    owner_id: "user-2",
+    invite_code: "SITI-PERS",
+    members: [
+      { user_id: "user-2", name: "Siti Rahma (Akun 2)", role: "owner" },
+    ],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "ws-joint-couple",
+    name: "Keluarga Budi & Siti (Akun Bersama)",
+    type: "couple",
+    owner_id: "user-1",
+    invite_code: "BUDI-SITI-2026",
+    members: [
+      { user_id: "user-1", name: "Budi Santoso (Akun 1)", role: "owner" },
+      { user_id: "user-2", name: "Siti Rahma (Akun 2)", role: "editor" },
+      { user_id: "user-joint", name: "Keluarga Budi & Siti", role: "owner" },
+    ],
+    created_at: new Date().toISOString(),
+  },
+];
+
 // Helper to initialize local storage
 const initializeLocalStorage = () => {
   const checkAndSet = (key: string, defaultValue: any) => {
@@ -227,6 +276,7 @@ const initializeLocalStorage = () => {
   checkAndSet("mf_recurring", DEFAULT_RECURRING);
   checkAndSet("mf_notifications", DEFAULT_NOTIFICATIONS);
   checkAndSet("mf_health_logs", []);
+  checkAndSet("mf_workspaces", DEFAULT_WORKSPACES);
 };
 
 // Auto run initialization on load
@@ -431,7 +481,7 @@ export const db = {
         if (error) throw new Error(`Gagal membuat wallet: ${error.message}`);
       }
       const list = getLS<Wallet[]>("mf_wallets");
-      const newWallet: Wallet = { ...wallet, id: "w-" + Math.random().toString(36).substring(2, 9), user_id: userId, balance: Number(wallet.balance) || 0 };
+      const newWallet: Wallet = { ...wallet, id: "w-" + Math.random().toString(36).substring(2, 9), user_id: userId, balance: Number(wallet.balance) || 0, is_private: wallet.is_private ?? false };
       list.push(newWallet);
       setLS("mf_wallets", list);
       return newWallet;
@@ -497,28 +547,116 @@ export const db = {
       setLS("mf_categories", list);
       return newCategory;
     },
+    update: async (userId: string, id: string, updates: Partial<Category>): Promise<Category> => {
+      if (isSupabaseConfigured && userId !== "local-user") {
+        const { data, error } = await supabase
+          .from("categories")
+          .update(updates)
+          .eq("id", id)
+          .select()
+          .single();
+        if (!error && data) return data;
+      }
+      const list = getLS<Category[]>("mf_categories");
+      const idx = list.findIndex((c) => c.id === id);
+      if (idx !== -1) {
+        list[idx] = { ...list[idx], ...updates };
+        setLS("mf_categories", list);
+        return list[idx];
+      }
+      throw new Error("Category not found");
+    },
+    delete: async (userId: string, id: string): Promise<boolean> => {
+      if (isSupabaseConfigured && userId !== "local-user") {
+        const { error } = await supabase.from("categories").delete().eq("id", id);
+        if (error) throw new Error(error.message);
+      }
+      let list = getLS<Category[]>("mf_categories");
+      list = list.filter((c) => c.id !== id);
+      setLS("mf_categories", list);
+
+      // Also clean up subcategories associated with this category
+      let subs = getLS<SubCategory[]>("mf_sub_categories");
+      subs = subs.filter((s) => s.category_id !== id);
+      setLS("mf_sub_categories", subs);
+
+      return true;
+    },
     subcategories: {
-      list: async (): Promise<SubCategory[]> => {
-        if (isSupabaseConfigured) {
-          const { data, error } = await supabase.from("sub_categories").select("*");
-          if (!error && data) return data;
+      list: async (userId?: string): Promise<SubCategory[]> => {
+        const localList = getLS<SubCategory[]>("mf_sub_categories");
+        if (isSupabaseConfigured && userId && userId !== "local-user") {
+          try {
+            const { data, error } = await supabase.from("sub_categories").select("*");
+            if (!error && data && Array.isArray(data)) {
+              const map = new Map<string, SubCategory>();
+              localList.forEach((s) => map.set(s.id, s));
+              data.forEach((s) => map.set(s.id, s));
+              const merged = Array.from(map.values());
+              setLS("mf_sub_categories", merged);
+              return merged;
+            }
+          } catch (e) {
+            console.warn("[DB] Subcategories fetch error:", e);
+          }
         }
-        return getLS<SubCategory[]>("mf_sub_categories");
+        return localList;
       },
-      create: async (categoryId: string, name: string): Promise<SubCategory> => {
-        if (isSupabaseConfigured) {
-          const { data, error } = await supabase
-            .from("sub_categories")
-            .insert([{ category_id: categoryId, name }])
-            .select()
-            .single();
-          if (!error && data) return data;
+      create: async (categoryId: string, name: string, userId?: string): Promise<SubCategory> => {
+        let createdFromSupabase: SubCategory | null = null;
+        if (isSupabaseConfigured && userId && userId !== "local-user" && !categoryId.startsWith("cat-")) {
+          try {
+            const { data, error } = await supabase
+              .from("sub_categories")
+              .insert([{ category_id: categoryId, name }])
+              .select()
+              .single();
+            if (!error && data) {
+              createdFromSupabase = data;
+            } else if (error) {
+              console.warn("[DB] Supabase insert subcategory error:", error.message);
+            }
+          } catch (e) {
+            console.warn("[DB] Supabase subcategory exception:", e);
+          }
         }
         const list = getLS<SubCategory[]>("mf_sub_categories");
-        const newSub: SubCategory = { id: "sub-" + Math.random().toString(36).substring(2, 9), category_id: categoryId, name };
-        list.push(newSub);
-        setLS("mf_sub_categories", list);
+        const newSub: SubCategory = createdFromSupabase || {
+          id: "sub-" + Math.random().toString(36).substring(2, 9),
+          category_id: categoryId,
+          name: name.trim(),
+        };
+        const filtered = list.filter((s) => s.id !== newSub.id);
+        filtered.push(newSub);
+        setLS("mf_sub_categories", filtered);
         return newSub;
+      },
+      update: async (id: string, name: string): Promise<void> => {
+        if (isSupabaseConfigured && !id.startsWith("sub-")) {
+          try {
+            await supabase.from("sub_categories").update({ name }).eq("id", id);
+          } catch (e) {
+            console.warn("[DB] Supabase update subcategory error:", e);
+          }
+        }
+        const list = getLS<SubCategory[]>("mf_sub_categories");
+        const idx = list.findIndex((s) => s.id === id);
+        if (idx !== -1) {
+          list[idx].name = name;
+          setLS("mf_sub_categories", list);
+        }
+      },
+      delete: async (id: string): Promise<void> => {
+        if (isSupabaseConfigured && !id.startsWith("sub-")) {
+          try {
+            await supabase.from("sub_categories").delete().eq("id", id);
+          } catch (e) {
+            console.warn("[DB] Supabase delete subcategory error:", e);
+          }
+        }
+        let list = getLS<SubCategory[]>("mf_sub_categories");
+        list = list.filter((s) => s.id !== id);
+        setLS("mf_sub_categories", list);
       },
     },
   },
@@ -567,7 +705,11 @@ export const db = {
       const wallets = getLS<Wallet[]>("mf_wallets");
       const walletIdx = wallets.findIndex((w) => w.id === tx.wallet_id);
       if (walletIdx !== -1) {
-        const adjustment = tx.type === "income" ? newTx.amount : -newTx.amount;
+        let adjustment = 0;
+        if (tx.type === "income") adjustment = newTx.amount;
+        else if (tx.type === "savings") adjustment = 0;
+        else adjustment = -newTx.amount;
+        
         wallets[walletIdx].balance += adjustment;
         setLS("mf_wallets", wallets);
       }
@@ -621,14 +763,22 @@ export const db = {
       // Revert old transaction on old wallet
       const oldWalletIdx = wallets.findIndex((w) => w.id === oldTx.wallet_id);
       if (oldWalletIdx !== -1) {
-        const oldAdjustment = oldTx.type === "income" ? -oldTx.amount : oldTx.amount;
+        let oldAdjustment = 0;
+        if (oldTx.type === "income") oldAdjustment = -oldTx.amount;
+        else if (oldTx.type === "savings") oldAdjustment = 0;
+        else oldAdjustment = oldTx.amount;
+        
         wallets[oldWalletIdx].balance += oldAdjustment;
       }
 
       // Apply new transaction on new wallet
       const newWalletIdx = wallets.findIndex((w) => w.id === newTx.wallet_id);
       if (newWalletIdx !== -1) {
-        const newAdjustment = newTx.type === "income" ? newTx.amount : -newTx.amount;
+        let newAdjustment = 0;
+        if (newTx.type === "income") newAdjustment = newTx.amount;
+        else if (newTx.type === "savings") newAdjustment = 0;
+        else newAdjustment = -newTx.amount;
+        
         wallets[newWalletIdx].balance += newAdjustment;
       }
 
@@ -652,7 +802,11 @@ export const db = {
       const wallets = getLS<Wallet[]>("mf_wallets");
       const walletIdx = wallets.findIndex((w) => w.id === tx.wallet_id);
       if (walletIdx !== -1) {
-        const adjustment = tx.type === "income" ? -tx.amount : tx.amount;
+        let adjustment = 0;
+        if (tx.type === "income") adjustment = -tx.amount;
+        else if (tx.type === "savings") adjustment = 0;
+        else adjustment = tx.amount;
+        
         wallets[walletIdx].balance += adjustment;
         setLS("mf_wallets", wallets);
       }
@@ -1030,6 +1184,44 @@ export const db = {
       return newLog;
     },
   },
+  workspaces: {
+    list: async (userId?: string): Promise<Workspace[]> => {
+      let list = getLS<Workspace[]>("mf_workspaces");
+      if (!list || list.length === 0) {
+        list = [...DEFAULT_WORKSPACES];
+        setLS("mf_workspaces", list);
+      }
+      if (userId) {
+        return list.filter((w) => w.owner_id === userId || w.members?.some((m) => m.user_id === userId));
+      }
+      return list;
+    },
+    get: async (id: string): Promise<Workspace | null> => {
+      const list = await db.workspaces.list();
+      return list.find((w) => w.id === id) || null;
+    },
+    getByCode: async (code: string): Promise<Workspace | null> => {
+      const list = await db.workspaces.list();
+      return list.find((w) => w.invite_code?.toUpperCase() === code.trim().toUpperCase()) || null;
+    },
+    save: async (workspace: Workspace): Promise<Workspace> => {
+      let list = getLS<Workspace[]>("mf_workspaces");
+      const all = list && list.length > 0 ? [...list] : [...DEFAULT_WORKSPACES];
+      const idx = all.findIndex((w) => w.id === workspace.id);
+      if (idx >= 0) {
+        all[idx] = workspace;
+      } else {
+        all.push(workspace);
+      }
+      setLS("mf_workspaces", all);
+      return workspace;
+    },
+    delete: async (id: string): Promise<void> => {
+      const list = await db.workspaces.list();
+      const filtered = list.filter((w) => w.id !== id);
+      setLS("mf_workspaces", filtered);
+    },
+  },
 };
 
 // =========================================================================
@@ -1178,3 +1370,4 @@ export const ensureDatabaseSeeded = async (userId: string): Promise<void> => {
     console.error("[Seed] Error in ensureDatabaseSeeded:", err);
   }
 };
+

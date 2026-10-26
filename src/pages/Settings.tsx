@@ -443,8 +443,8 @@ export const Settings: React.FC = () => {
                   <Input label="Nama Pengguna" value={profileName} onChange={(e) => setProfileName(e.target.value)} required />
 
                   <div className="grid grid-cols-2 gap-3">
-                    <Input type="number" label="Gaji Bulanan (Rp)" value={profileSalary} onChange={(e) => setProfileSalary(e.target.value)} required />
-                    <Input type="number" label="Target Jangka Panjang (Rp)" value={profileTarget} onChange={(e) => setProfileTarget(e.target.value)} required />
+                    <Input type="text" inputMode="numeric" label="Gaji Bulanan (Rp)" value={profileSalary} onChange={(e) => setProfileSalary(e.target.value)} required />
+                    <Input type="text" inputMode="numeric" label="Target Jangka Panjang (Rp)" value={profileTarget} onChange={(e) => setProfileTarget(e.target.value)} required />
                   </div>
 
                   <Button type="submit" className="h-11 font-bold mt-2 text-xs">

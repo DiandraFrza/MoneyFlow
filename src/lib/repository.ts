@@ -4,8 +4,26 @@
 // Coordinates data between UI/State and Supabase or LocalStorage fallback
 
 import { supabase, isSupabaseConfigured } from "./supabase";
-import { isValidUuid } from "./utils";
-import type { UserProfile, UserSettings, Wallet, Category, SubCategory, Transaction, WalletTransfer, Budget, SavingsGoal, Debt, RecurringTransaction, AppNotification, FinancialHealthLog, Workspace, WorkspaceRole, SplitBill } from "../types";
+import { isValidUuid, generateUuid } from "./utils";
+import type { UserProfile, UserSettings, Wallet, Category, SubCategory, Transaction, WalletTransfer, Budget, SavingsGoal, Debt, RecurringTransaction, AppNotification, FinancialHealthLog, Workspace, WorkspaceRole, SplitBill, AccessKey } from "../types";
+
+// =========================================================================
+// SUPABASE USER GUARD HELPER
+// =========================================================================
+export const isSupabaseUser = (userId?: string | null): boolean => {
+  if (!isSupabaseConfigured || !userId) return false;
+  if (
+    userId === "demo-user" ||
+    userId === "local-user" ||
+    userId === "user-1" ||
+    userId === "user-2" ||
+    userId === "user-joint" ||
+    userId === "admin-user"
+  ) {
+    return false;
+  }
+  return isValidUuid(userId);
+};
 
 // =========================================================================
 // DEBUG HELPER
@@ -21,6 +39,16 @@ const dbLog = (operation: string, table: string, payload?: any, error?: any) => 
 // =========================================================================
 // MOCK & SEED DATA (For LocalStorage Fallback)
 // =========================================================================
+
+export const DEFAULT_DEMO_PROFILE: UserProfile = {
+  id: "demo-user",
+  name: "Pengguna Demo",
+  photo_url: "",
+  currency: "Rp",
+  monthly_salary: 5000000,
+  financial_target: 10000000,
+  is_demo: true,
+};
 
 const DEFAULT_PROFILE: UserProfile = {
   id: "local-user",
@@ -231,6 +259,38 @@ export const DEFAULT_WORKSPACES: Workspace[] = [
     ],
     created_at: new Date().toISOString(),
   },
+  {
+    id: "ws-demo-user",
+    name: "Ruang Demo (Pribadi)",
+    type: "personal",
+    owner_id: "demo-user",
+    invite_code: "DEMO-2026",
+    members: [
+      { user_id: "demo-user", name: "Pengguna Demo", role: "owner" },
+    ],
+    created_at: new Date().toISOString(),
+  },
+];
+
+// Default Access Keys for offline fallback / Lynk.id out-of-the-box
+export const DEFAULT_ACCESS_KEYS: AccessKey[] = [
+  {
+    id: "key-demo-1",
+    key: "12345678901",
+    user_name: "Pembeli Demo Lynk.id",
+    phone_number: "081234567890",
+    is_active: true,
+    activated_at: "2026-10-26T10:00:00Z",
+    created_at: "2026-10-26T10:00:00Z",
+  },
+  {
+    id: "key-demo-2",
+    key: "88888888888",
+    user_name: "",
+    phone_number: "",
+    is_active: true,
+    created_at: "2026-10-26T10:00:00Z",
+  },
 ];
 
 // Helper to initialize local storage
@@ -243,10 +303,12 @@ const initializeLocalStorage = () => {
 
   checkAndSet("mf_profile", DEFAULT_PROFILE);
   checkAndSet("mf_settings", DEFAULT_SETTINGS);
+  checkAndSet("mf_access_keys", DEFAULT_ACCESS_KEYS);
 
   // Pre-seed local profiles switcher
   checkAndSet("mf_profiles_map", {
     "local-user": DEFAULT_PROFILE,
+    "demo-user": DEFAULT_DEMO_PROFILE,
     "user-1": { id: "user-1", name: "Budi Santoso (Akun 1)", currency: "Rp", monthly_salary: 8500000, financial_target: 30000000 },
     "user-2": { id: "user-2", name: "Siti Rahma (Akun 2)", currency: "Rp", monthly_salary: 6000000, financial_target: 20000000 },
     "user-joint": { id: "user-joint", name: "Keluarga Budi & Siti (Akun Bersama)", currency: "Rp", monthly_salary: 14500000, financial_target: 50000000 },
@@ -262,8 +324,11 @@ const initializeLocalStorage = () => {
     user2Status: "pending",
   });
 
-  // Seed wallets including Budi and Siti
+  // Seed wallets including Demo, Budi and Siti
   const defaultWallets = [...DEFAULT_WALLETS];
+  if (!defaultWallets.some((w) => w.user_id === "demo-user")) {
+    defaultWallets.push({ id: "w-demo-cash", user_id: "demo-user", name: "Dompet Tunai Demo", type: "cash", balance: 1500000, icon: "Wallet", color: "#ff5722" });
+  }
   if (!defaultWallets.some((w) => w.user_id === "user-1")) {
     defaultWallets.push({ id: "w-cash-1", user_id: "user-1", name: "Cash Tunai Budi", type: "cash", balance: 500000, icon: "Wallet", color: "#10B981" }, { id: "w-bca-1", user_id: "user-1", name: "BCA Budi", type: "bank", provider: "BCA", balance: 6500000, icon: "CreditCard", color: "#2563EB" }, { id: "w-cash-2", user_id: "user-2", name: "Cash Tunai Siti", type: "cash", balance: 250000, icon: "Wallet", color: "#10B981" }, { id: "w-mandiri-2", user_id: "user-2", name: "Mandiri Siti", type: "bank", provider: "Mandiri", balance: 4200000, icon: "CreditCard", color: "#F59E0B" });
   }
@@ -272,8 +337,14 @@ const initializeLocalStorage = () => {
   checkAndSet("mf_categories", DEFAULT_CATEGORIES);
   checkAndSet("mf_sub_categories", DEFAULT_SUB_CATEGORIES);
 
-  // Seed transactions including Budi and Siti
+  // Seed transactions including Demo, Budi and Siti
   const defaultTxs = [...DEFAULT_TRANSACTIONS];
+  if (!defaultTxs.some((t) => t.user_id === "demo-user")) {
+    defaultTxs.push(
+      { id: "t-demo-1", user_id: "demo-user", wallet_id: "w-demo-cash", category_id: "cat-gaji", type: "income", amount: 5000000, description: "Gaji Bulanan Demo", date: getDateOffset(3) },
+      { id: "t-demo-2", user_id: "demo-user", wallet_id: "w-demo-cash", category_id: "cat-makanan", sub_category_id: "sub-makansiang", type: "expense", amount: 35000, description: "Makan Siang Demo", date: getDateOffset(0) },
+    );
+  }
   if (!defaultTxs.some((t) => t.user_id === "user-1")) {
     defaultTxs.push({ id: "t-1-1", user_id: "user-1", wallet_id: "w-bca-1", category_id: "cat-gaji", type: "income", amount: 8500000, description: "Gaji Bulanan Budi", date: getDateOffset(5) }, { id: "t-1-2", user_id: "user-1", wallet_id: "w-cash-1", category_id: "cat-makanan", sub_category_id: "sub-sarapan", type: "expense", amount: 30000, description: "Makan Bubur Ayam", date: getDateOffset(1) }, { id: "t-2-1", user_id: "user-2", wallet_id: "w-mandiri-2", category_id: "cat-gaji", type: "income", amount: 6000000, description: "Gaji Bulanan Siti", date: getDateOffset(5) }, { id: "t-2-2", user_id: "user-2", wallet_id: "w-cash-2", category_id: "cat-makanan", sub_category_id: "sub-minuman", type: "expense", amount: 45000, description: "Es Kopi Latte", date: getDateOffset(2) });
   }
@@ -361,7 +432,21 @@ export const db = {
   // -----------------------------------------------------------------------
   profile: {
     get: async (userId: string): Promise<UserProfile> => {
-      if (isSupabaseConfigured && userId !== "local-user" && userId !== "user-1" && userId !== "user-2" && userId !== "user-joint") {
+      if (userId === "demo-user") {
+        const profilesMap = getLS<Record<string, UserProfile>>("mf_profiles_map");
+        return profilesMap["demo-user"] || DEFAULT_DEMO_PROFILE;
+      }
+      if (userId === "admin-user") {
+        return {
+          id: "admin-user",
+          name: "Master Admin (Lynk.id)",
+          currency: "Rp",
+          monthly_salary: 0,
+          financial_target: 0,
+          is_admin: true,
+        };
+      }
+      if (isSupabaseUser(userId)) {
         console.log("[DB] GET profile, user_id:", userId);
         const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
         dbLog("SELECT", "profiles", { userId }, error);
@@ -402,11 +487,15 @@ export const db = {
       return profile;
     },
     update: async (userId: string, updates: Partial<UserProfile>): Promise<UserProfile> => {
-      if (isSupabaseConfigured && userId !== "local-user" && userId !== "user-1" && userId !== "user-2" && userId !== "user-joint") {
-        console.log("[DB] UPDATE profile, user_id:", userId, "updates:", updates);
-        const { data, error } = await supabase.from("profiles").update(updates).eq("id", userId).select().single();
-        dbLog("UPDATE", "profiles", updates, error);
-        if (!error && data) return data;
+      if (isSupabaseUser(userId)) {
+        try {
+          console.log("[DB] UPDATE profile, user_id:", userId, "updates:", updates);
+          const { data, error } = await supabase.from("profiles").upsert({ id: userId, ...updates }, { onConflict: "id" }).select().maybeSingle();
+          dbLog("UPDATE", "profiles", updates, error);
+          if (!error && data) return data;
+        } catch (e) {
+          console.warn("[DB] Supabase profile upsert error:", e);
+        }
       }
 
       const profile = { ...(await db.profile.get(userId)), ...updates, updated_at: new Date().toISOString() };
@@ -424,7 +513,7 @@ export const db = {
 
   settings: {
     get: async (userId: string): Promise<UserSettings> => {
-      if (isSupabaseConfigured && userId !== "local-user" && userId !== "user-1" && userId !== "user-2" && userId !== "user-joint") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase.from("user_settings").select("*").eq("user_id", userId).single();
         if (!error && data) return data;
 
@@ -457,7 +546,7 @@ export const db = {
       return defaultSet;
     },
     update: async (userId: string, updates: Partial<UserSettings>): Promise<UserSettings> => {
-      if (isSupabaseConfigured && userId !== "local-user" && userId !== "user-1" && userId !== "user-2" && userId !== "user-joint") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase.from("user_settings").update(updates).eq("user_id", userId).select().single();
         if (!error && data) return data;
       }
@@ -479,7 +568,7 @@ export const db = {
   // -----------------------------------------------------------------------
   wallets: {
     list: async (userId: string, workspaceId?: string): Promise<Wallet[]> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         console.log("[DB] LIST wallets, user_id:", userId, "workspace_id:", workspaceId);
         let query = supabase.from("wallets").select("*");
         if (workspaceId && isValidUuid(workspaceId)) {
@@ -492,14 +581,27 @@ export const db = {
         if (!error && data) return data;
         if (error) console.error("[DB] wallets list error:", error);
       }
-      const list = getFilteredLS<Wallet>("mf_wallets", userId);
+      let list = getFilteredLS<Wallet>("mf_wallets", userId);
+      if (userId === "demo-user" && list.length === 0) {
+        const demoWallet: Wallet = { id: "w-demo-cash", user_id: "demo-user", name: "Dompet Tunai Demo", type: "cash", balance: 1500000, icon: "Wallet", color: "#ff5722" };
+        const allWallets = getLS<Wallet[]>("mf_wallets");
+        allWallets.push(demoWallet);
+        setLS("mf_wallets", allWallets);
+        list = [demoWallet];
+      }
       if (workspaceId) {
         return list.filter((w) => w.workspace_id === workspaceId || !w.workspace_id);
       }
       return list;
     },
     create: async (userId: string, wallet: Omit<Wallet, "id" | "user_id">): Promise<Wallet> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (userId === "demo-user") {
+        const demoWallets = getLS<Wallet[]>("mf_wallets").filter((w) => w.user_id === "demo-user");
+        if (demoWallets.length >= 1) {
+          throw new Error("Batas Mode Demo: Maksimal 1 Dompet. Silakan beli Kode Akses di Lynk.id untuk dompet tanpa batas.");
+        }
+      }
+      if (isSupabaseUser(userId)) {
         const payload = {
           ...wallet,
           user_id: userId,
@@ -518,7 +620,7 @@ export const db = {
       return newWallet;
     },
     update: async (userId: string, id: string, updates: Partial<Wallet>): Promise<Wallet> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId) && isValidUuid(id)) {
         const sanitizedUpdates = {
           ...updates,
           ...(updates.workspace_id !== undefined ? {
@@ -540,7 +642,7 @@ export const db = {
       return list[idx];
     },
     delete: async (userId: string, id: string): Promise<boolean> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId) && isValidUuid(id)) {
         console.log("[DB] DELETE wallet, id:", id);
         const { error } = await supabase.from("wallets").delete().eq("id", id).eq("user_id", userId);
         dbLog("DELETE", "wallets", { id }, error);
@@ -559,7 +661,7 @@ export const db = {
   // -----------------------------------------------------------------------
   categories: {
     list: async (userId: string): Promise<Category[]> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase.from("categories").select("*").or(`user_id.eq.${userId},user_id.is.null`);
         if (!error && data) return data;
       }
@@ -570,7 +672,7 @@ export const db = {
       return all.filter((c) => c.user_id === null || c.user_id === userId);
     },
     create: async (userId: string, category: Omit<Category, "id" | "user_id">): Promise<Category> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase
           .from("categories")
           .insert([{ ...category, user_id: userId }])
@@ -585,7 +687,7 @@ export const db = {
       return newCategory;
     },
     update: async (userId: string, id: string, updates: Partial<Category>): Promise<Category> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId) && isValidUuid(id)) {
         const { data, error } = await supabase
           .from("categories")
           .update(updates)
@@ -604,7 +706,7 @@ export const db = {
       throw new Error("Category not found");
     },
     delete: async (userId: string, id: string): Promise<boolean> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId) && isValidUuid(id)) {
         const { error } = await supabase.from("categories").delete().eq("id", id);
         if (error) throw new Error(error.message);
       }
@@ -622,7 +724,7 @@ export const db = {
     subcategories: {
       list: async (userId?: string): Promise<SubCategory[]> => {
         const localList = getLS<SubCategory[]>("mf_sub_categories");
-        if (isSupabaseConfigured && userId && userId !== "local-user") {
+        if (isSupabaseUser(userId)) {
           try {
             const { data, error } = await supabase.from("sub_categories").select("*");
             if (!error && data && Array.isArray(data)) {
@@ -641,7 +743,7 @@ export const db = {
       },
       create: async (categoryId: string, name: string, userId?: string): Promise<SubCategory> => {
         let createdFromSupabase: SubCategory | null = null;
-        if (isSupabaseConfigured && userId && userId !== "local-user" && !categoryId.startsWith("cat-")) {
+        if (isSupabaseUser(userId) && !categoryId.startsWith("cat-")) {
           try {
             const { data, error } = await supabase
               .from("sub_categories")
@@ -669,7 +771,7 @@ export const db = {
         return newSub;
       },
       update: async (id: string, name: string): Promise<void> => {
-        if (isSupabaseConfigured && !id.startsWith("sub-")) {
+        if (isSupabaseConfigured && isValidUuid(id) && !id.startsWith("sub-")) {
           try {
             await supabase.from("sub_categories").update({ name }).eq("id", id);
           } catch (e) {
@@ -684,7 +786,7 @@ export const db = {
         }
       },
       delete: async (id: string): Promise<void> => {
-        if (isSupabaseConfigured && !id.startsWith("sub-")) {
+        if (isSupabaseConfigured && isValidUuid(id) && !id.startsWith("sub-")) {
           try {
             await supabase.from("sub_categories").delete().eq("id", id);
           } catch (e) {
@@ -703,7 +805,7 @@ export const db = {
   // -----------------------------------------------------------------------
   transactions: {
     list: async (userId: string, workspaceId?: string): Promise<Transaction[]> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         console.log("[DB] LIST transactions, user_id:", userId, "workspace_id:", workspaceId);
         let query = supabase.from("transactions").select("*");
         if (workspaceId && isValidUuid(workspaceId)) {
@@ -716,7 +818,17 @@ export const db = {
         if (!error && data) return data;
         if (error) console.error("[DB] transactions list error:", error);
       }
-      const txs = getFilteredLS<Transaction>("mf_transactions", userId);
+      let txs = getFilteredLS<Transaction>("mf_transactions", userId);
+      if (userId === "demo-user" && txs.length === 0) {
+        const defaultDemoTxs: Transaction[] = [
+          { id: "t-demo-1", user_id: "demo-user", wallet_id: "w-demo-cash", category_id: "cat-gaji", type: "income", amount: 5000000, description: "Gaji Bulanan (Demo)", date: getDateOffset(3) },
+          { id: "t-demo-2", user_id: "demo-user", wallet_id: "w-demo-cash", category_id: "cat-makanan", sub_category_id: "sub-makansiang", type: "expense", amount: 35000, description: "Makan Siang (Demo)", date: getDateOffset(0) },
+        ];
+        const allTxs = getLS<Transaction[]>("mf_transactions");
+        allTxs.push(...defaultDemoTxs);
+        setLS("mf_transactions", allTxs);
+        txs = [...defaultDemoTxs];
+      }
       if (workspaceId) {
         return txs.filter((t) => t.workspace_id === workspaceId || !t.workspace_id).sort((a, b) => b.date.localeCompare(a.date));
       }
@@ -731,7 +843,13 @@ export const db = {
       return txs.sort((a, b) => b.date.localeCompare(a.date));
     },
     create: async (userId: string, tx: Omit<Transaction, "id" | "user_id">): Promise<Transaction> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (userId === "demo-user") {
+        const demoTxs = getLS<Transaction[]>("mf_transactions").filter((t) => t.user_id === "demo-user");
+        if (demoTxs.length >= 5) {
+          throw new Error("Batas Mode Demo: Maksimal 5 Transaksi. Silakan beli Lisensi 11-Digit di Lynk.id untuk mencatat transaksi tanpa batas.");
+        }
+      }
+      if (isSupabaseUser(userId)) {
         const payload = {
           ...tx,
           user_id: userId,
@@ -796,7 +914,7 @@ export const db = {
       return newTx;
     },
     update: async (userId: string, id: string, updates: Partial<Transaction>): Promise<Transaction> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId) && isValidUuid(id)) {
         const sanitizedUpdates = {
           ...updates,
           ...(updates.workspace_id !== undefined ? {
@@ -849,7 +967,7 @@ export const db = {
       return newTx;
     },
     delete: async (userId: string, id: string): Promise<boolean> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId) && isValidUuid(id)) {
         const { error } = await supabase.from("transactions").delete().eq("id", id);
         return !error;
       }
@@ -882,7 +1000,7 @@ export const db = {
   // -----------------------------------------------------------------------
   transfers: {
     list: async (userId: string, _workspaceId?: string): Promise<WalletTransfer[]> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase
           .from("wallet_transfers")
           .select("*")
@@ -893,7 +1011,7 @@ export const db = {
       return getFilteredLS<WalletTransfer>("mf_transfers", userId).sort((a, b) => b.date.localeCompare(a.date));
     },
     create: async (userId: string, transfer: Omit<WalletTransfer, "id" | "user_id">): Promise<WalletTransfer> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase
           .from("wallet_transfers")
           .insert([{ ...transfer, user_id: userId }])
@@ -930,14 +1048,14 @@ export const db = {
   // -----------------------------------------------------------------------
   budgets: {
     list: async (userId: string): Promise<Budget[]> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase.from("budgets").select("*").eq("user_id", userId);
         if (!error && data) return data;
       }
       return getFilteredLS<Budget>("mf_budgets", userId);
     },
     upsert: async (userId: string, budget: Omit<Budget, "id" | "user_id">): Promise<Budget> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         // Supabase upsert requires unique constraint user_id, category_id, month, year
         const { data, error } = await supabase
           .from("budgets")
@@ -961,7 +1079,7 @@ export const db = {
       }
     },
     delete: async (userId: string, id: string): Promise<boolean> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId) && isValidUuid(id)) {
         const { error } = await supabase.from("budgets").delete().eq("id", id);
         return !error;
       }
@@ -977,14 +1095,14 @@ export const db = {
   // -----------------------------------------------------------------------
   savings: {
     list: async (userId: string): Promise<SavingsGoal[]> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase.from("savings_goals").select("*").eq("user_id", userId);
         if (!error && data) return data;
       }
       return getFilteredLS<SavingsGoal>("mf_savings", userId);
     },
     create: async (userId: string, goal: Omit<SavingsGoal, "id" | "user_id">): Promise<SavingsGoal> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase
           .from("savings_goals")
           .insert([{ ...goal, user_id: userId }])
@@ -999,7 +1117,7 @@ export const db = {
       return newGoal;
     },
     update: async (userId: string, id: string, updates: Partial<SavingsGoal>): Promise<SavingsGoal> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId) && isValidUuid(id)) {
         const { data, error } = await supabase.from("savings_goals").update(updates).eq("id", id).select().single();
         if (!error && data) return data;
       }
@@ -1012,7 +1130,7 @@ export const db = {
       return list[idx];
     },
     delete: async (userId: string, id: string): Promise<boolean> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId) && isValidUuid(id)) {
         const { error } = await supabase.from("savings_goals").delete().eq("id", id);
         return !error;
       }
@@ -1028,14 +1146,14 @@ export const db = {
   // -----------------------------------------------------------------------
   debts: {
     list: async (userId: string): Promise<Debt[]> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase.from("debts").select("*").eq("user_id", userId).order("created_at", { ascending: false });
         if (!error && data) return data;
       }
       return getFilteredLS<Debt>("mf_debts", userId).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
     },
     create: async (userId: string, debt: Omit<Debt, "id" | "user_id" | "status">): Promise<Debt> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase
           .from("debts")
           .insert([{ ...debt, user_id: userId, status: "pending" }])
@@ -1054,17 +1172,12 @@ export const db = {
         created_at: new Date().toISOString(),
       };
 
-      // If adding debt and starting wallet was specified, update wallet balance:
-      // - Borrowed: cash enters our wallet (increase balance)
-      // - Lent: cash leaves our wallet (decrease balance)
-      // For this simple trigger imitation, let's keep it clean: users can choose to log it or manually adjust.
-
       list.push(newDebt);
       setLS("mf_debts", list);
       return newDebt;
     },
     update: async (userId: string, id: string, updates: Partial<Debt>): Promise<Debt> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId) && isValidUuid(id)) {
         const { data, error } = await supabase.from("debts").update(updates).eq("id", id).select().single();
         if (!error && data) return data;
       }
@@ -1082,7 +1195,7 @@ export const db = {
       return updated;
     },
     delete: async (userId: string, id: string): Promise<boolean> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId) && isValidUuid(id)) {
         const { error } = await supabase.from("debts").delete().eq("id", id);
         return !error;
       }
@@ -1098,14 +1211,14 @@ export const db = {
   // -----------------------------------------------------------------------
   recurring: {
     list: async (userId: string): Promise<RecurringTransaction[]> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase.from("recurring_transactions").select("*").eq("user_id", userId);
         if (!error && data) return data;
       }
       return getFilteredLS<RecurringTransaction>("mf_recurring", userId);
     },
     create: async (userId: string, rec: Omit<RecurringTransaction, "id" | "user_id" | "status">): Promise<RecurringTransaction> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase
           .from("recurring_transactions")
           .insert([{ ...rec, user_id: userId, status: "active" }])
@@ -1126,7 +1239,7 @@ export const db = {
       return newRec;
     },
     update: async (userId: string, id: string, updates: Partial<RecurringTransaction>): Promise<RecurringTransaction> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId) && isValidUuid(id)) {
         const { data, error } = await supabase.from("recurring_transactions").update(updates).eq("id", id).select().single();
         if (!error && data) return data;
       }
@@ -1139,7 +1252,7 @@ export const db = {
       return list[idx];
     },
     delete: async (userId: string, id: string): Promise<boolean> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId) && isValidUuid(id)) {
         const { error } = await supabase.from("recurring_transactions").delete().eq("id", id);
         return !error;
       }
@@ -1155,14 +1268,14 @@ export const db = {
   // -----------------------------------------------------------------------
   notifications: {
     list: async (userId: string): Promise<AppNotification[]> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase.from("notifications").select("*").eq("user_id", userId).order("created_at", { ascending: false });
         if (!error && data) return data;
       }
       return getFilteredLS<AppNotification>("mf_notifications", userId).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
     },
     create: async (userId: string, notif: Omit<AppNotification, "id" | "user_id" | "is_read" | "created_at">): Promise<AppNotification> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase
           .from("notifications")
           .insert([{ ...notif, user_id: userId, is_read: false }])
@@ -1183,7 +1296,7 @@ export const db = {
       return newNotif;
     },
     markAsRead: async (userId: string, id: string): Promise<boolean> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId) && isValidUuid(id)) {
         const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", id);
         return !error;
       }
@@ -1197,7 +1310,7 @@ export const db = {
       return false;
     },
     markAllAsRead: async (userId: string): Promise<boolean> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { error } = await supabase.from("notifications").update({ is_read: true }).eq("user_id", userId);
         return !error;
       }
@@ -1207,7 +1320,7 @@ export const db = {
       return true;
     },
     clear: async (userId: string): Promise<boolean> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { error } = await supabase.from("notifications").delete().eq("user_id", userId);
         return !error;
       }
@@ -1221,14 +1334,14 @@ export const db = {
   // -----------------------------------------------------------------------
   healthLogs: {
     list: async (userId: string): Promise<FinancialHealthLog[]> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase.from("financial_health_logs").select("*").eq("user_id", userId).order("log_date", { ascending: false });
         if (!error && data) return data;
       }
       return getLS<FinancialHealthLog[]>("mf_health_logs");
     },
     log: async (userId: string, log: Omit<FinancialHealthLog, "id" | "user_id" | "created_at">): Promise<FinancialHealthLog> => {
-      if (isSupabaseConfigured && userId !== "local-user") {
+      if (isSupabaseUser(userId)) {
         const { data, error } = await supabase
           .from("financial_health_logs")
           .insert([{ ...log, user_id: userId }])
@@ -1250,7 +1363,7 @@ export const db = {
   },
   workspaces: {
     list: async (userId?: string): Promise<Workspace[]> => {
-      if (isSupabaseConfigured && userId && userId !== "local-user" && isValidUuid(userId)) {
+      if (isSupabaseUser(userId)) {
         try {
           // Fetch workspaces where user is owner OR a member via workspace_members
           const { data: ownedData } = await supabase
@@ -1272,7 +1385,6 @@ export const db = {
           }
           const allWs = [...(ownedData || []), ...joinedData.filter((jw: any) => !(ownedData || []).find((ow: any) => ow.id === jw.id))];
           if (allWs.length > 0) {
-            // Fetch real member profile names so users see 'Danda' / 'Danda404' instead of 'Anggota'
             const userIdsToFetch = Array.from(
               new Set(allWs.flatMap((ws: any) => (ws.workspace_members || []).map((m: any) => m.user_id).concat(ws.owner_id)))
             ).filter((id) => isValidUuid(id));
@@ -1349,10 +1461,19 @@ export const db = {
       const list = await db.workspaces.list();
       return list.find((w) => w.invite_code?.toUpperCase() === code.trim().toUpperCase()) || null;
     },
-    joinByCodeRPC: async (code: string): Promise<{ success: boolean; workspace_id?: string; name?: string; role?: WorkspaceRole; message?: string }> => {
+    joinByCodeRPC: async (code: string, userId?: string): Promise<{ success: boolean; workspace_id?: string; name?: string; role?: WorkspaceRole; message?: string }> => {
+      if (userId === "demo-user") {
+        return { success: false, message: "Fitur Kolaborasi Ruang Keuangan terkunci di Mode Demo. Beli Lisensi 11-Digit di Lynk.id untuk membuka." };
+      }
       if (isSupabaseConfigured) {
         try {
-          const { data, error } = await supabase.rpc("join_workspace_by_code", { p_code: code.trim() });
+          const rpcPayload: Record<string, any> = { p_code: code.trim() };
+          if (userId && isValidUuid(userId)) {
+            rpcPayload._user_id = userId;
+            rpcPayload.user_id = userId;
+            rpcPayload.p_user_id = userId;
+          }
+          const { data, error } = await supabase.rpc("join_workspace_by_code", rpcPayload);
           if (!error && data && data.success) {
             return data;
           }
@@ -1363,7 +1484,7 @@ export const db = {
       return { success: false, message: "RPC unavailable or failed" };
     },
     addMember: async (workspaceId: string, userId: string, role: WorkspaceRole = "editor", name?: string): Promise<void> => {
-      if (isSupabaseConfigured && isValidUuid(workspaceId) && isValidUuid(userId)) {
+      if (isSupabaseConfigured && isValidUuid(workspaceId) && isSupabaseUser(userId)) {
         try {
           const { error } = await supabase.from("workspace_members").upsert(
             { workspace_id: workspaceId, user_id: userId, role },
@@ -1389,7 +1510,7 @@ export const db = {
       }
     },
     save: async (workspace: Workspace): Promise<Workspace> => {
-      if (isSupabaseConfigured && workspace.owner_id !== "local-user" && isValidUuid(workspace.owner_id)) {
+      if (isSupabaseUser(workspace.owner_id)) {
         try {
           const wsPayload = {
             name: workspace.name,
@@ -1410,7 +1531,7 @@ export const db = {
           }
           if (workspace.members && workspace.members.length > 0) {
             for (const m of workspace.members) {
-              if (isValidUuid(m.user_id) && isValidUuid(realId)) {
+              if (isSupabaseUser(m.user_id) && isValidUuid(realId)) {
                 await supabase.from("workspace_members").upsert({
                   workspace_id: realId,
                   user_id: m.user_id,
@@ -1446,7 +1567,7 @@ export const db = {
   // -----------------------------------------------------------------------
   splitBills: {
     list: async (userId: string, workspaceId?: string): Promise<SplitBill[]> => {
-      if (isSupabaseConfigured && userId && userId !== "local-user" && isValidUuid(userId)) {
+      if (isSupabaseUser(userId)) {
         try {
           let query = supabase.from("split_bills").select("*");
           if (workspaceId && isValidUuid(workspaceId)) {
@@ -1495,7 +1616,7 @@ export const db = {
       const generatedId = "sb-" + Math.random().toString(36).substring(2, 9);
       const createdAt = new Date().toISOString();
 
-      if (isSupabaseConfigured && userId && userId !== "local-user" && isValidUuid(userId)) {
+      if (isSupabaseUser(userId)) {
         try {
           const payload: any = {
             user_id: userId,
@@ -1641,6 +1762,196 @@ export const db = {
     },
   },
 
+  // -----------------------------------------------------------------------
+  // ACCESS KEYS (11-DIGIT LYNK.ID LICENSING)
+  // -----------------------------------------------------------------------
+  accessKeys: {
+    list: async (): Promise<AccessKey[]> => {
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from("access_keys")
+            .select("*")
+            .order("created_at", { ascending: false });
+          if (!error && data) {
+            const normalized: AccessKey[] = data.map((item: any) => ({
+              id: item.id || item.key,
+              key: item.key,
+              user_id: item.user_id,
+              user_name: item.user_name || "",
+              phone_number: item.phone_number || "",
+              is_active: item.is_active ?? true,
+              activated_at: item.activated_at || null,
+              created_at: item.created_at || new Date().toISOString(),
+            }));
+            setLS("mf_access_keys", normalized);
+            return normalized;
+          } else if (error) {
+            console.warn("[DB] Supabase access_keys fetch error:", error.message);
+          }
+        } catch (e) {
+          console.warn("[DB] Supabase access_keys fetch error:", e);
+        }
+      }
+      return getLS<AccessKey[]>("mf_access_keys");
+    },
+    getByKey: async (rawKey: string): Promise<AccessKey | null> => {
+      const cleanKey = rawKey.replace(/[^0-9]/g, "");
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from("access_keys")
+            .select("*")
+            .eq("key", cleanKey)
+            .maybeSingle();
+          if (!error && data) {
+            return {
+              id: data.id || data.key,
+              key: data.key,
+              user_id: data.user_id,
+              user_name: data.user_name || "",
+              phone_number: data.phone_number || "",
+              is_active: data.is_active ?? true,
+              activated_at: data.activated_at || null,
+              created_at: data.created_at || new Date().toISOString(),
+            };
+          }
+        } catch (e) {
+          console.warn("[DB] Supabase access_keys get error:", e);
+        }
+      }
+      const local = getLS<AccessKey[]>("mf_access_keys");
+      return local.find((k) => k.key === cleanKey) || null;
+    },
+    create: async (data: { key: string; user_name?: string; phone_number?: string }): Promise<AccessKey> => {
+      const cleanKey = data.key.replace(/[^0-9]/g, "");
+      const newKey: AccessKey = {
+        id: cleanKey,
+        key: cleanKey,
+        user_name: data.user_name?.trim() || "",
+        phone_number: data.phone_number?.trim() || "",
+        is_active: true,
+        created_at: new Date().toISOString(),
+      };
+      if (isSupabaseConfigured) {
+        try {
+          // Hanya kirim field dasar yang pasti ada di skema
+          const insertPayload: any = {
+            key: cleanKey,
+            user_name: data.user_name?.trim() || "",
+            phone_number: data.phone_number?.trim() || "",
+            is_active: true,
+          };
+          const { data: created, error } = await supabase.from("access_keys").insert([insertPayload]).select().maybeSingle();
+          if (!error && created) {
+            const result: AccessKey = {
+              ...newKey,
+              ...created,
+              id: created.id || created.key,
+            };
+            const list = getLS<AccessKey[]>("mf_access_keys");
+            list.unshift(result);
+            setLS("mf_access_keys", list);
+            return result;
+          } else if (error) {
+            console.warn("[DB] Supabase access_keys create error:", error.message);
+          }
+        } catch (e) {
+          console.warn("[DB] Supabase access_keys create error:", e);
+        }
+      }
+      const list = getLS<AccessKey[]>("mf_access_keys");
+      list.unshift(newKey);
+      setLS("mf_access_keys", list);
+      return newKey;
+    },
+    activate: async (rawKey: string, userName: string, phoneNumber: string, userId?: string): Promise<AccessKey> => {
+      const cleanKey = rawKey.replace(/[^0-9]/g, "");
+      const activatedAt = new Date().toISOString();
+      const targetUserId = userId || generateUuid();
+
+      if (isSupabaseConfigured) {
+        try {
+          const upsertPayload: any = {
+            key: cleanKey,
+            user_name: userName.trim(),
+            phone_number: phoneNumber.trim(),
+            activated_at: activatedAt,
+            is_active: true,
+          };
+          if (userId && isValidUuid(userId)) {
+            upsertPayload.user_id = userId;
+          }
+
+          let { data, error } = await supabase
+            .from("access_keys")
+            .upsert([upsertPayload], { onConflict: "key" })
+            .select()
+            .maybeSingle();
+
+          // Jika gagal karena foreign key constraint pada user_id, hilangkan user_id dan ulangi
+          if (error && (error.message.includes("foreign key") || error.code === "23503")) {
+            delete upsertPayload.user_id;
+            const retry = await supabase
+              .from("access_keys")
+              .upsert([upsertPayload], { onConflict: "key" })
+              .select()
+              .maybeSingle();
+            data = retry.data;
+            error = retry.error;
+          }
+
+          if (!error && data) {
+            const result: AccessKey = { ...data, id: data.id || data.key };
+            const list = getLS<AccessKey[]>("mf_access_keys");
+            const idx = list.findIndex((k) => k.key === cleanKey);
+            if (idx !== -1) list[idx] = result;
+            else list.unshift(result);
+            setLS("mf_access_keys", list);
+            return result;
+          } else if (error) {
+            console.warn("[DB] Supabase access_keys activate error:", error.message);
+          }
+        } catch (e) {
+          console.warn("[DB] Supabase access_keys activate error:", e);
+        }
+      }
+
+      const list = getLS<AccessKey[]>("mf_access_keys");
+      const idx = list.findIndex((k) => k.key === cleanKey);
+      const updated: AccessKey = {
+        id: idx !== -1 ? list[idx].id || cleanKey : cleanKey,
+        key: cleanKey,
+        user_id: targetUserId,
+        user_name: userName.trim(),
+        phone_number: phoneNumber.trim(),
+        is_active: true,
+        activated_at: activatedAt,
+        created_at: idx !== -1 ? list[idx].created_at : activatedAt,
+      };
+      if (idx !== -1) {
+        list[idx] = updated;
+      } else {
+        list.unshift(updated);
+      }
+      setLS("mf_access_keys", list);
+      return updated;
+    },
+    delete: async (rawKey: string): Promise<boolean> => {
+      const cleanKey = rawKey.replace(/[^0-9]/g, "");
+      if (isSupabaseConfigured) {
+        try {
+          await supabase.from("access_keys").delete().eq("key", cleanKey);
+        } catch (e) {
+          console.warn("[DB] Supabase access_keys delete error:", e);
+        }
+      }
+      let list = getLS<AccessKey[]>("mf_access_keys");
+      list = list.filter((k) => k.key !== cleanKey);
+      setLS("mf_access_keys", list);
+      return true;
+    },
+  },
 };
 
 // =========================================================================
@@ -1707,7 +2018,7 @@ export const runRecurringEngine = async (userId: string): Promise<number> => {
 // Automatically initializes system-wide default categories, subcategories,
 // and user default wallet if they are missing in Supabase.
 export const ensureDatabaseSeeded = async (userId: string): Promise<void> => {
-  if (!isSupabaseConfigured || userId === "local-user") return;
+  if (!isSupabaseUser(userId)) return;
 
   try {
     console.log("[Seed] Memulai ensureDatabaseSeeded untuk user:", userId);

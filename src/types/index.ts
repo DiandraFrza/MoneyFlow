@@ -11,6 +11,31 @@ export interface UserProfile {
   financial_target: number;
   created_at?: string;
   updated_at?: string;
+  access_key?: string;
+  phone_number?: string;
+  is_admin?: boolean;
+  is_demo?: boolean;
+}
+
+export interface AccessKey {
+  id?: string;
+  key: string;
+  user_id?: string;
+  user_name?: string;
+  phone_number?: string;
+  is_active: boolean;
+  activated_at?: string;
+  created_at?: string;
+}
+
+export interface ActiveSession {
+  key?: string;
+  user_id: string;
+  name: string;
+  phone_number?: string;
+  is_admin?: boolean;
+  is_demo?: boolean;
+  activated_at?: string;
 }
 
 export type WorkspaceRole = "owner" | "editor" | "viewer";

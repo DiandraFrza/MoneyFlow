@@ -1,10 +1,19 @@
 /** @format */
 
 import { create } from "zustand";
-import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import { isSupabaseConfigured } from "../lib/supabase";
 import { db } from "../lib/repository";
 import { generateUuid, isValidUuid } from "../lib/utils";
-import type { UserProfile, UserSettings, Workspace, WorkspaceRole } from "../types";
+import type { UserProfile, UserSettings, Workspace, WorkspaceRole, ActiveSession } from "../types";
+
+export interface KeyCheckResult {
+  success: boolean;
+  needsBinding?: boolean;
+  error?: string;
+  key?: string;
+  name?: string;
+  phone?: string;
+}
 
 interface AuthState {
   user: UserProfile | null;
@@ -14,11 +23,18 @@ interface AuthState {
   activeRole: WorkspaceRole;
   loading: boolean;
   isLocal: boolean;
+  isDemo: boolean;
+  isAdmin: boolean;
+  accessKey: string | null;
   error: string | null;
   initialize: () => Promise<void>;
-  login: (email: string, password: string) => Promise<boolean>;
-  register: (email: string, password: string, name: string) => Promise<boolean>;
-  forgotPassword: (email: string) => Promise<boolean>;
+  loginWithKey: (key: string) => Promise<KeyCheckResult>;
+  activateKey: (key: string, name: string, phone: string) => Promise<boolean>;
+  loginDemo: () => Promise<void>;
+  // Deprecated compatibility methods
+  login: (email?: string, password?: string) => Promise<boolean>;
+  register: (email?: string, password?: string, name?: string) => Promise<boolean>;
+  forgotPassword: (email?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   updateSettings: (updates: Partial<UserSettings>) => Promise<void>;
@@ -46,10 +62,9 @@ const resolveUserWorkspaces = async (user: UserProfile) => {
   }
 
   const savedWsId = typeof localStorage !== "undefined" ? localStorage.getItem("mf_active_workspace_id") : null;
-  // Invalidate stale non-UUID workspace ID in localStorage if connected to Supabase
   let activeWs = userWorkspaces.find((w) => w.id === savedWsId);
-  if (!activeWs || (isSupabaseConfigured && savedWsId && !isValidUuid(savedWsId))) {
-    if (typeof localStorage !== "undefined" && savedWsId && !isValidUuid(savedWsId)) {
+  if (!activeWs || (isSupabaseConfigured && savedWsId && !isValidUuid(savedWsId) && user.id !== "demo-user")) {
+    if (typeof localStorage !== "undefined" && savedWsId && !isValidUuid(savedWsId) && user.id !== "demo-user") {
       localStorage.removeItem("mf_active_workspace_id");
     }
     if (user.id === "user-joint") {
@@ -64,7 +79,7 @@ const resolveUserWorkspaces = async (user: UserProfile) => {
     if (activeWs.owner_id === user.id) {
       activeRole = "owner";
     } else {
-      const member = activeWs.members.find((m) => m.user_id === user.id);
+      const member = activeWs.members?.find((m) => m.user_id === user.id);
       activeRole = member?.role || "viewer";
     }
     if (typeof localStorage !== "undefined") {
@@ -87,77 +102,105 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   activeRole: "owner",
   loading: true,
   isLocal: !isSupabaseConfigured,
+  isDemo: false,
+  isAdmin: false,
+  accessKey: null,
   error: null,
 
   initialize: async () => {
     set({ loading: true, error: null });
     try {
-      if (isSupabaseConfigured) {
-        console.log("[Auth] Supabase terkonfigurasi, mengecek session...");
+      // 1. Cek sesi aktif yang tersimpan di localStorage (mf_active_session)
+      const rawSession = typeof localStorage !== "undefined" ? localStorage.getItem("mf_active_session") : null;
+      if (rawSession) {
+        try {
+          const session: ActiveSession = JSON.parse(rawSession);
 
-        // 1. Check active session from Supabase
-        const {
-          data: { session },
-          error: sessionErr,
-        } = await supabase.auth.getSession();
-
-        if (sessionErr) {
-          console.error("[Auth] Error getSession:", sessionErr.message);
-        }
-
-        if (session?.user) {
-          console.log("[Auth] ✅ Session aktif, user_id:", session.user.id);
-          const profile = await db.profile.get(session.user.id);
-          const settings = await db.settings.get(session.user.id);
-          const wsData = await resolveUserWorkspaces(profile);
-          set({
-            user: profile,
-            settings: settings,
-            ...wsData,
-            isLocal: false,
-            loading: false,
-          });
-        } else {
-          console.log("[Auth] ❌ Tidak ada session aktif, tampilkan halaman login");
-          set({ user: null, settings: null, workspaces: [], activeWorkspaceId: null, activeRole: "owner", isLocal: false, loading: false });
-        }
-
-        // 2. Listen to auth state changes (for token refresh, etc.)
-        supabase.auth.onAuthStateChange(async (event: any, newSession: any) => {
-          console.log("[Auth] onAuthStateChange event:", event, "user:", newSession?.user?.id);
-
-          if (event === "SIGNED_OUT") {
-            set({ user: null, settings: null, workspaces: [], activeWorkspaceId: null, activeRole: "owner", isLocal: false, loading: false });
+          // Sesi Mode Demo
+          if (session.is_demo || session.user_id === "demo-user") {
+            console.log("[Auth] Memulihkan sesi Demo Mode...");
+            const demoProfile = await db.profile.get("demo-user");
+            const demoSettings = await db.settings.get("demo-user");
+            const wsData = await resolveUserWorkspaces(demoProfile);
+            set({
+              user: demoProfile,
+              settings: demoSettings,
+              ...wsData,
+              isLocal: true,
+              isDemo: true,
+              isAdmin: false,
+              accessKey: null,
+              loading: false,
+            });
             return;
           }
 
-          if (newSession?.user) {
-            // Hanya update jika user berubah atau ada SIGNED_IN event
-            if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
-              const currentUser = get().user;
-              if (!currentUser || currentUser.id !== newSession.user.id || event === "USER_UPDATED") {
-                console.log("[Auth] Memperbarui user dari event:", event);
-                const p = await db.profile.get(newSession.user.id);
-                const s = await db.settings.get(newSession.user.id);
-                const wsData = await resolveUserWorkspaces(p);
-                set({ user: p, settings: s, ...wsData, isLocal: false, loading: false });
-              }
-            }
+          // Sesi Master Admin
+          if (session.is_admin || session.user_id === "admin-user") {
+            console.log("[Auth] Memulihkan sesi Master Admin...");
+            const adminProfile: UserProfile = {
+              id: "admin-user",
+              name: session.name || "Master Admin (Lynk.id)",
+              currency: "Rp",
+              monthly_salary: 0,
+              financial_target: 0,
+              is_admin: true,
+              access_key: session.key || "99999999999",
+            };
+            const adminSettings = await db.settings.get("admin-user");
+            const wsData = await resolveUserWorkspaces(adminProfile);
+            set({
+              user: adminProfile,
+              settings: adminSettings,
+              ...wsData,
+              isLocal: false,
+              isDemo: false,
+              isAdmin: true,
+              accessKey: session.key || "99999999999",
+              loading: false,
+            });
+            return;
           }
-        });
-        return;
+
+          // Sesi Pengguna Berlisensi 11-Digit
+          if (session.key && session.user_id) {
+            console.log("[Auth] Memulihkan sesi Lisensi Aktif:", session.key, "user_id:", session.user_id);
+            const profile = await db.profile.get(session.user_id);
+            if (session.name && !profile.name) profile.name = session.name;
+            profile.access_key = session.key;
+            if (session.phone_number) profile.phone_number = session.phone_number;
+
+            const settings = await db.settings.get(session.user_id);
+            const wsData = await resolveUserWorkspaces(profile);
+            set({
+              user: profile,
+              settings: settings,
+              ...wsData,
+              isLocal: !isSupabaseConfigured,
+              isDemo: false,
+              isAdmin: false,
+              accessKey: session.key,
+              loading: false,
+            });
+            return;
+          }
+        } catch (e) {
+          console.error("[Auth] Gagal membaca mf_active_session:", e);
+        }
       }
 
-      // Supabase tidak terkonfigurasi → mode offline
-      console.warn("[Auth] ⚠️ Supabase tidak terkonfigurasi, masuk mode offline");
-      const localProfile = await db.profile.get("local-user");
-      const localSettings = await db.settings.get("local-user");
-      const wsData = await resolveUserWorkspaces(localProfile);
+      // 2. Jika tidak ada sesi aktif, tampilkan form aktivasi kode akses
+      console.log("[Auth] Tidak ada sesi tersimpan, menampilkan halaman aktivasi");
       set({
-        user: localProfile,
-        settings: localSettings,
-        ...wsData,
-        isLocal: true,
+        user: null,
+        settings: null,
+        workspaces: [],
+        activeWorkspaceId: null,
+        activeRole: "owner",
+        isLocal: false,
+        isDemo: false,
+        isAdmin: false,
+        accessKey: null,
         loading: false,
       });
     } catch (err: any) {
@@ -166,139 +209,236 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  login: async (email, password) => {
+  loginWithKey: async (rawKey: string): Promise<KeyCheckResult> => {
     set({ loading: true, error: null });
-    try {
-      if (!email && !password) {
-        console.warn("[Auth] Login mode lokal/guest dipilih");
-        const localProfile = await db.profile.get("local-user");
-        const localSettings = await db.settings.get("local-user");
-        const wsData = await resolveUserWorkspaces(localProfile);
-        set({ user: localProfile, settings: localSettings, ...wsData, isLocal: true, loading: false });
-        return true;
-      }
+    const cleanKey = rawKey.replace(/[^0-9]/g, "");
 
-      if (!isSupabaseConfigured) {
-        console.warn("[Auth] Login offline (Supabase tidak terkonfigurasi)");
-        const localProfile = await db.profile.get("local-user");
-        const localSettings = await db.settings.get("local-user");
-        const wsData = await resolveUserWorkspaces(localProfile);
-        set({
-          user: localProfile,
-          settings: localSettings,
-          ...wsData,
-          isLocal: true,
-          loading: false,
-        });
-        return true;
-      }
-
-      console.log("[Auth] Login Supabase, email:", email);
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-      if (error) {
-        console.error("[Auth] Login error:", error.message);
-        throw error;
-      }
-
-      if (data.user) {
-        console.log("[Auth] ✅ Login berhasil, user_id:", data.user.id);
-        const profile = await db.profile.get(data.user.id);
-        const settings = await db.settings.get(data.user.id);
-        const wsData = await resolveUserWorkspaces(profile);
-        set({
-          user: profile,
-          settings: settings,
-          ...wsData,
-          isLocal: false,
-          loading: false,
-        });
-        return true;
-      }
-      return false;
-    } catch (err: any) {
-      console.error("[Auth] Login gagal:", err.message);
-      set({ error: err.message, loading: false });
-      return false;
+    if (cleanKey.length !== 11) {
+      const err = "Kode akses harus terdiri dari tepat 11 digit angka.";
+      set({ loading: false, error: err });
+      return { success: false, error: err };
     }
-  },
 
-  register: async (email, password, name) => {
-    set({ loading: true, error: null });
+    const masterAdminKey = (import.meta.env.VITE_ADMIN_KEY || "99999999999").trim();
+
+    // 1. Cek apakah Master Admin Key
+    if (cleanKey === masterAdminKey) {
+      console.log("[Auth] ✅ Login sebagai Master Admin");
+      const adminUser: UserProfile = {
+        id: "admin-user",
+        name: "Master Admin (Lynk.id)",
+        currency: "Rp",
+        monthly_salary: 0,
+        financial_target: 0,
+        is_admin: true,
+        access_key: cleanKey,
+      };
+      const adminSettings = await db.settings.get("admin-user");
+      const wsData = await resolveUserWorkspaces(adminUser);
+      const sessionData: ActiveSession = {
+        key: cleanKey,
+        user_id: "admin-user",
+        name: "Master Admin (Lynk.id)",
+        is_admin: true,
+        activated_at: new Date().toISOString(),
+      };
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem("mf_active_session", JSON.stringify(sessionData));
+      }
+      set({
+        user: adminUser,
+        settings: adminSettings,
+        ...wsData,
+        isLocal: false,
+        isDemo: false,
+        isAdmin: true,
+        accessKey: cleanKey,
+        loading: false,
+      });
+      return { success: true };
+    }
+
+    // 2. Cek lisensi di database access_keys
     try {
-      if (!isSupabaseConfigured) {
-        set({ error: "Supabase tidak terkonfigurasi. Tidak dapat mendaftar online.", loading: false });
-        return false;
+      const keyRecord = await db.accessKeys.getByKey(cleanKey);
+
+      if (keyRecord && keyRecord.is_active === false) {
+        const err = "Kode akses ini telah dinonaktifkan oleh administrator.";
+        set({ loading: false, error: err });
+        return { success: false, error: err };
       }
 
-      console.log("[Auth] Registrasi Supabase, email:", email, "name:", name);
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { name },
-        },
+      // Jika lisensi belum diaktifkan (belum ada nama / tanggal aktif)
+      if (!keyRecord || !keyRecord.activated_at || !keyRecord.user_name) {
+        set({ loading: false });
+        return {
+          success: false,
+          needsBinding: true,
+          key: cleanKey,
+          name: keyRecord?.user_name || "",
+          phone: keyRecord?.phone_number || "",
+        };
+      }
+
+      // Jika lisensi sudah aktif sebelumnya -> langsung login
+      const userId = keyRecord.user_id && isValidUuid(keyRecord.user_id) ? keyRecord.user_id : generateUuid();
+      const profile = await db.profile.get(userId);
+      profile.name = keyRecord.user_name || profile.name;
+      profile.access_key = cleanKey;
+      profile.phone_number = keyRecord.phone_number;
+
+      const settings = await db.settings.get(userId);
+      const wsData = await resolveUserWorkspaces(profile);
+      const sessionData: ActiveSession = {
+        key: cleanKey,
+        user_id: userId,
+        name: profile.name,
+        phone_number: keyRecord.phone_number,
+        is_admin: false,
+        activated_at: keyRecord.activated_at,
+      };
+
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem("mf_active_session", JSON.stringify(sessionData));
+      }
+
+      set({
+        user: profile,
+        settings: settings,
+        ...wsData,
+        isLocal: !isSupabaseConfigured,
+        isDemo: false,
+        isAdmin: false,
+        accessKey: cleanKey,
+        loading: false,
       });
 
-      if (error) {
-        console.error("[Auth] Registrasi error:", error.message);
-        throw error;
+      return { success: true };
+    } catch (err: any) {
+      const msg = err.message || "Gagal memverifikasi kode akses.";
+      set({ loading: false, error: msg });
+      return { success: false, error: msg };
+    }
+  },
+
+  activateKey: async (rawKey: string, name: string, phone: string): Promise<boolean> => {
+    set({ loading: true, error: null });
+    const cleanKey = rawKey.replace(/[^0-9]/g, "");
+
+    if (cleanKey.length !== 11) {
+      set({ loading: false, error: "Kode akses harus terdiri dari 11 digit angka." });
+      return false;
+    }
+    if (!name.trim()) {
+      set({ loading: false, error: "Nama lengkap wajib diisi untuk mengikat lisensi." });
+      return false;
+    }
+    if (!phone.trim()) {
+      set({ loading: false, error: "Nomor WhatsApp wajib diisi untuk verifikasi pembeli." });
+      return false;
+    }
+
+    try {
+      const userId = generateUuid();
+      await db.accessKeys.activate(cleanKey, name.trim(), phone.trim(), userId);
+
+      const profile: UserProfile = {
+        id: userId,
+        name: name.trim(),
+        currency: "Rp",
+        monthly_salary: 8500000,
+        financial_target: 30000000,
+        access_key: cleanKey,
+        phone_number: phone.trim(),
+      };
+      await db.profile.update(userId, profile);
+      const settings = await db.settings.get(userId);
+      const wsData = await resolveUserWorkspaces(profile);
+
+      const sessionData: ActiveSession = {
+        key: cleanKey,
+        user_id: userId,
+        name: name.trim(),
+        phone_number: phone.trim(),
+        is_admin: false,
+        activated_at: new Date().toISOString(),
+      };
+
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem("mf_active_session", JSON.stringify(sessionData));
       }
 
-      if (data.user) {
-        console.log("[Auth] ✅ Registrasi berhasil, user_id:", data.user.id);
-        // Tunggu sebentar agar trigger Supabase berjalan (jika ada)
-        await new Promise((r) => setTimeout(r, 1500));
-        const profile = await db.profile.get(data.user.id);
-        const settings = await db.settings.get(data.user.id);
-        const wsData = await resolveUserWorkspaces(profile);
-        set({
-          user: profile,
-          settings: settings,
-          ...wsData,
-          isLocal: false,
-          loading: false,
-        });
-        return true;
-      }
-      set({ loading: false });
-      return false;
+      set({
+        user: profile,
+        settings: settings,
+        ...wsData,
+        isLocal: !isSupabaseConfigured,
+        isDemo: false,
+        isAdmin: false,
+        accessKey: cleanKey,
+        loading: false,
+      });
+
+      return true;
     } catch (err: any) {
-      console.error("[Auth] Registrasi gagal:", err.message);
-      set({ error: err.message, loading: false });
+      set({ loading: false, error: err.message || "Gagal mengaktifkan kode akses." });
       return false;
     }
   },
 
-  forgotPassword: async (email) => {
+  loginDemo: async (): Promise<void> => {
+    set({ loading: true, error: null });
     try {
-      if (!isSupabaseConfigured) {
-        throw new Error("Supabase tidak terkonfigurasi.");
+      console.log("[Auth] Mengaktifkan Mode Demo Gratis (20% Fitur)...");
+      const demoProfile = await db.profile.get("demo-user");
+      const demoSettings = await db.settings.get("demo-user");
+      const wsData = await resolveUserWorkspaces(demoProfile);
+
+      const sessionData: ActiveSession = {
+        user_id: "demo-user",
+        name: "Pengguna Demo",
+        is_demo: true,
+        activated_at: new Date().toISOString(),
+      };
+
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem("mf_active_session", JSON.stringify(sessionData));
       }
-      console.log("[Auth] Reset password untuk:", email);
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
-      if (error) throw error;
-      return true;
+
+      set({
+        user: demoProfile,
+        settings: demoSettings,
+        ...wsData,
+        isLocal: true,
+        isDemo: true,
+        isAdmin: false,
+        accessKey: null,
+        loading: false,
+      });
     } catch (err: any) {
-      console.error("[Auth] Reset password error:", err.message);
-      set({ error: err.message });
-      return false;
+      set({ loading: false, error: err.message });
     }
+  },
+
+  // Stubs for backward compatibility
+  login: async () => {
+    return false;
+  },
+  register: async () => {
+    return false;
+  },
+  forgotPassword: async () => {
+    return false;
   },
 
   logout: async () => {
     set({ loading: true });
     try {
-      console.log("[Auth] Logout...");
-      if (isSupabaseConfigured) {
-        await supabase.auth.signOut();
-        console.log("[Auth] ✅ Logout Supabase berhasil");
-      }
-
+      console.log("[Auth] Logout dan menghapus sesi aktif...");
       if (typeof localStorage !== "undefined") {
+        localStorage.removeItem("mf_active_session");
         localStorage.removeItem("mf_active_workspace_id");
       }
-
       set({
         user: null,
         settings: null,
@@ -306,11 +446,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         activeWorkspaceId: null,
         activeRole: "owner",
         isLocal: false,
+        isDemo: false,
+        isAdmin: false,
+        accessKey: null,
         loading: false,
       });
     } catch (err: any) {
-      console.error("[Auth] Logout error:", err.message);
-      set({ error: err.message, loading: false, user: null, settings: null, workspaces: [], activeWorkspaceId: null, activeRole: "owner" });
+      set({
+        error: err.message,
+        loading: false,
+        user: null,
+        settings: null,
+        workspaces: [],
+        activeWorkspaceId: null,
+        activeRole: "owner",
+        isDemo: false,
+        isAdmin: false,
+      });
     }
   },
 
@@ -318,10 +470,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const currentUser = get().user;
     if (!currentUser) return;
     try {
-      console.log("[Auth] Update profile, user_id:", currentUser.id, "updates:", updates);
       const updated = await db.profile.update(currentUser.id, updates);
       set({ user: updated });
-      console.log("[Auth] ✅ Profile berhasil diperbarui");
     } catch (err: any) {
       console.error("[Auth] Update profile error:", err.message);
       set({ error: err.message });
@@ -354,6 +504,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   createWorkspace: async (name: string, type: "personal" | "couple" | "family") => {
     const currentUser = get().user;
     if (!currentUser) return null;
+
+    if (currentUser.id === "demo-user" || get().isDemo) {
+      throw new Error("Fitur Kolaborasi Ruang Keuangan terkunci di Mode Demo. Beli Lisensi 11-Digit di Lynk.id untuk membuka.");
+    }
 
     const newWs: Workspace = {
       id: generateUuid(),
@@ -396,7 +550,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (ws.owner_id === currentUser.id) {
       role = "owner";
     } else {
-      const member = ws.members.find((m) => m.user_id === currentUser.id);
+      const member = ws.members?.find((m) => m.user_id === currentUser.id);
       role = member?.role || "viewer";
     }
 
@@ -409,7 +563,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       activeRole: role,
     });
 
-    // Re-fetch finance data for the new workspace
     try {
       const { useFinanceStore } = await import("./financeStore");
       useFinanceStore.getState().fetchData(currentUser.id, workspaceId);
@@ -420,14 +573,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const currentUser = get().user;
     if (!currentUser) return false;
 
+    if (currentUser.id === "demo-user" || get().isDemo) {
+      throw new Error("Fitur Kolaborasi Ruang Keuangan terkunci di Mode Demo. Beli Lisensi 11-Digit di Lynk.id untuk membuka.");
+    }
+
     const cleanCode = code.trim();
 
-    // 1. Try secure RPC join in Supabase first
-    const rpcRes = await db.workspaces.joinByCodeRPC(cleanCode);
+    // 1. Try secure RPC join in Supabase first (passing currentUser.id)
+    const rpcRes = await db.workspaces.joinByCodeRPC(cleanCode, currentUser.id);
     let targetWsId = rpcRes.workspace_id;
     let targetRole: WorkspaceRole = (rpcRes.role as WorkspaceRole) || "editor";
 
-    // 2. If RPC was not used / returned false, fallback to direct query & addMember
+    // 2. Fallback to direct query & addMember
     if (!rpcRes.success || !targetWsId) {
       const ws = await db.workspaces.getByCode(cleanCode);
       if (!ws) return false;
@@ -441,13 +598,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     }
 
-    // Force-invalidate localStorage cache
     if (typeof localStorage !== "undefined") {
       localStorage.removeItem("mf_workspaces");
       localStorage.setItem("mf_active_workspace_id", targetWsId);
     }
 
-    // Fetch fresh workspaces from DB
     const userWorkspaces = await db.workspaces.list(currentUser.id);
 
     set({
@@ -456,7 +611,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       activeRole: targetRole,
     });
 
-    // Re-fetch finance data immediately for the joined workspace
     try {
       const { useFinanceStore } = await import("./financeStore");
       await useFinanceStore.getState().fetchData(currentUser.id, targetWsId);
@@ -476,8 +630,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const ws = workspaces.find((w) => w.id === activeWorkspaceId);
     if (!ws) return;
 
-    const memberIdx = ws.members.findIndex((m) => m.user_id === targetUserId);
-    if (memberIdx === -1) return;
+    const memberIdx = ws.members?.findIndex((m) => m.user_id === targetUserId);
+    if (memberIdx === -1 || memberIdx === undefined) return;
 
     ws.members[memberIdx].role = role;
     await db.workspaces.save(ws);

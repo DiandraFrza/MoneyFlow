@@ -49,7 +49,7 @@ export const SplitBillPage: React.FC = () => {
 
   // Riwayat Patungan yang Tersimpan
   const [savedBills, setSavedBills] = useState<SplitBill[]>([]);
-  const [isLoadingBills, setIsLoadingBills] = useState<boolean>(true);
+  const [_isLoadingBills, setIsLoadingBills] = useState<boolean>(true);
 
   // Load split bills dari DB Supabase & LocalStorage
   useEffect(() => {

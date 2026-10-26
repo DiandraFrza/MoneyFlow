@@ -1562,7 +1562,7 @@ export const db = {
       return newBill;
     },
 
-    update: async (userId: string, id: string, updates: Partial<SplitBill>): Promise<SplitBill> => {
+    update: async (_userId: string, id: string, updates: Partial<SplitBill>): Promise<SplitBill> => {
       if (isSupabaseConfigured && isValidUuid(id)) {
         try {
           const payload: any = {
@@ -1627,7 +1627,7 @@ export const db = {
       return updated;
     },
 
-    delete: async (userId: string, id: string): Promise<void> => {
+    delete: async (_userId: string, id: string): Promise<void> => {
       if (isSupabaseConfigured && isValidUuid(id)) {
         try {
           const { error } = await supabase.from("split_bills").delete().eq("id", id);

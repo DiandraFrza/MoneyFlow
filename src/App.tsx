@@ -1,7 +1,7 @@
 /** @format */
 
 import React, { useEffect, useCallback, Suspense } from "react";
-import { HashRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./store/authStore";
 import { useFinanceStore } from "./store/financeStore";
 import { useModalStore } from "./store/modalStore";
@@ -12,6 +12,7 @@ const Dashboard = React.lazy(() => import("./pages/Dashboard").then((m) => ({ de
 const Transactions = React.lazy(() => import("./pages/Transactions").then((m) => ({ default: m.Transactions })));
 const Reports = React.lazy(() => import("./pages/Reports").then((m) => ({ default: m.Reports })));
 const Settings = React.lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
+const SplitBillPage = React.lazy(() => import("./pages/SplitBill").then((m) => ({ default: m.SplitBillPage })));
 
 const WalletConfigModal = React.lazy(() => import("./components/modals/WalletConfigModal").then((m) => ({ default: m.WalletConfigModal })));
 const BudgetConfigModal = React.lazy(() => import("./components/modals/BudgetConfigModal").then((m) => ({ default: m.BudgetConfigModal })));
@@ -29,7 +30,7 @@ const LoadingScreen: React.FC<{ message?: string }> = ({ message = "Menyiapkan M
   <div className="min-h-screen bg-[#f4f4f4] flex flex-col items-center justify-center gap-6 select-none">
     {/* Animated Circular Logo */}
     <div className="relative">
-      <div className="h-20 w-20 rounded-full bg-[#ff5722] flex items-center justify-center text-white border-2 border-[#1e1e1e]">
+      <div className="h-20 w-20 rounded-full bg-[#ff5722] flex items-center justify-center text-white border-2">
         <Wallet className="h-9 w-9 stroke-[2.2]" />
       </div>
       <div className="absolute -inset-2 rounded-full border-2 border-[#ff5722]/30 animate-ping pointer-events-none" />
@@ -103,24 +104,26 @@ export const App: React.FC = () => {
         {/* Screen Loading Skeleton saat data keuangan masih loading */}
         {financeLoading ? (
           <div className="flex flex-col gap-6 w-full animate-fade-in">
-            <div className="h-24 bg-slate-200/50 dark:bg-slate-800/40 rounded-2xl animate-pulse w-full" />
+            <div className="h-24 bg-[#e5e5e5] border border-[#1e1e1e] animate-pulse w-full" />
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-28 bg-slate-200/50 dark:bg-slate-800/40 rounded-2xl animate-pulse" />
+                <div key={i} className="h-28 bg-[#e5e5e5] border border-[#1e1e1e] animate-pulse" />
               ))}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
-              <div className="md:col-span-1 h-64 bg-slate-200/50 dark:bg-slate-800/40 rounded-2xl animate-pulse" />
-              <div className="md:col-span-2 h-64 bg-slate-200/50 dark:bg-slate-800/40 rounded-2xl animate-pulse" />
+              <div className="md:col-span-1 h-64 bg-[#e5e5e5] border border-[#1e1e1e] animate-pulse" />
+              <div className="md:col-span-2 h-64 bg-[#e5e5e5] border border-[#1e1e1e] animate-pulse" />
             </div>
           </div>
         ) : (
           <Suspense fallback={<LoadingScreen message="Memuat halaman..." />}>
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/transactions" element={<Transactions />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/split-bill" element={<SplitBillPage />} />
               {/* Catch all redirect to root */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

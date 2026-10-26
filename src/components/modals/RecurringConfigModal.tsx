@@ -1,3 +1,5 @@
+/** @format */
+
 import React, { useState, useEffect } from "react";
 import { useFinanceStore } from "../../store/financeStore";
 import { useAuthStore } from "../../store/authStore";
@@ -10,6 +12,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select } from "../ui/select";
 import { AlertTriangle, Save } from "lucide-react";
+import { formatCurrencyInput, parseCurrencyInput } from "../../lib/utils";
 
 interface RecurringConfigModalProps {
   isOpen: boolean;
@@ -59,7 +62,7 @@ export const RecurringConfigModal: React.FC<RecurringConfigModalProps> = ({ isOp
           wallet_id: recurring.wallet_id,
           category_id: recurring.category_id || "",
           type: recurring.type,
-          amount: recurring.amount.toString(),
+          amount: formatCurrencyInput(recurring.amount),
           description: recurring.description || "",
           frequency: recurring.frequency,
           interval_day: recurring.interval_day.toString(),
@@ -90,7 +93,7 @@ export const RecurringConfigModal: React.FC<RecurringConfigModalProps> = ({ isOp
       return;
     }
 
-    if (!formData.amount || parseFloat(formData.amount) <= 0) {
+    if (!formData.amount || parseCurrencyInput(formData.amount) <= 0) {
       setError("Jumlah harus lebih dari 0");
       return;
     }
@@ -104,7 +107,7 @@ export const RecurringConfigModal: React.FC<RecurringConfigModalProps> = ({ isOp
           wallet_id: formData.wallet_id,
           category_id: formData.category_id || null,
           type: formData.type,
-          amount: parseFloat(formData.amount),
+          amount: parseCurrencyInput(formData.amount),
           description: formData.description,
           frequency: formData.frequency,
           interval_day: parseInt(formData.interval_day || "5", 10),
@@ -115,7 +118,7 @@ export const RecurringConfigModal: React.FC<RecurringConfigModalProps> = ({ isOp
         await updateRecurring(user.id, recurring.id, {
           wallet_id: formData.wallet_id,
           category_id: formData.category_id || null,
-          amount: parseFloat(formData.amount),
+          amount: parseCurrencyInput(formData.amount),
           description: formData.description,
           frequency: formData.frequency,
           interval_day: parseInt(formData.interval_day || "5", 10),
@@ -169,12 +172,11 @@ export const RecurringConfigModal: React.FC<RecurringConfigModalProps> = ({ isOp
   return (
     <Dialog isOpen={isOpen} onClose={closeModal} title={title}>
       <div className="w-full">
-
         {mode === "delete" ? (
           <div className="space-y-4">
             <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
               <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-red-800 dark:text-red-300">Apakah Anda yakin ingin menghapus transaksi rutin ini? Transaksi yang sudah dibuat tidak akan dihapus.</p>
+              <p className="text-sm text-stone-800 font-bold">Apakah Anda yakin ingin menghapus transaksi rutin ini? Transaksi yang sudah dibuat tidak akan dihapus.</p>
             </div>
 
             {error && <div className="p-3 bg-red-100 border border-red-300 text-red-700 rounded text-sm">{error}</div>}
@@ -192,7 +194,7 @@ export const RecurringConfigModal: React.FC<RecurringConfigModalProps> = ({ isOp
           <form onSubmit={handleSave} className="space-y-4">
             <Input label="Nama Layanan / Catatan" placeholder="Netflix, Listrik, Kost, dll" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} required />
 
-            <Input type="number" label="Nominal (Rp)" placeholder="0" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} required />
+            <Input type="text" inputMode="numeric" label="Nominal (Rp)" placeholder="0" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: formatCurrencyInput(e.target.value) })} required />
 
             <Select label="Dompet Pembayaran" value={formData.wallet_id} onChange={(e) => setFormData({ ...formData, wallet_id: e.target.value })} options={[{ value: "", label: "Pilih Dompet..." }, ...wallets.map((w) => ({ value: w.id, label: w.name }))]} required />
 

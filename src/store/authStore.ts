@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { db } from "../lib/repository";
+import { generateUuid, isValidUuid } from "../lib/utils";
 import type { UserProfile, UserSettings, Workspace, WorkspaceRole } from "../types";
 
 interface AuthState {
@@ -32,11 +33,11 @@ const resolveUserWorkspaces = async (user: UserProfile) => {
   let userWorkspaces = await db.workspaces.list(user.id);
   if (!userWorkspaces || userWorkspaces.length === 0) {
     const defaultWs: Workspace = {
-      id: `ws-${user.id}`,
-      name: `${user.name || "Personal"} Space`,
+      id: generateUuid(),
+      name: `${user.name || "Ruang"} Pribadi`,
       type: "personal",
       owner_id: user.id,
-      invite_code: `INV-${user.id.slice(0, 6).toUpperCase()}`,
+      invite_code: `INV-${(user.id || Math.random().toString(36)).replace(/[^a-zA-Z0-9]/g, "").slice(0, 6).toUpperCase()}`,
       members: [{ user_id: user.id, name: user.name || "User", role: "owner" }],
       created_at: new Date().toISOString(),
     };
@@ -45,9 +46,12 @@ const resolveUserWorkspaces = async (user: UserProfile) => {
   }
 
   const savedWsId = typeof localStorage !== "undefined" ? localStorage.getItem("mf_active_workspace_id") : null;
+  // Invalidate stale non-UUID workspace ID in localStorage if connected to Supabase
   let activeWs = userWorkspaces.find((w) => w.id === savedWsId);
-
-  if (!activeWs) {
+  if (!activeWs || (isSupabaseConfigured && savedWsId && !isValidUuid(savedWsId))) {
+    if (typeof localStorage !== "undefined" && savedWsId && !isValidUuid(savedWsId)) {
+      localStorage.removeItem("mf_active_workspace_id");
+    }
     if (user.id === "user-joint") {
       activeWs = userWorkspaces.find((w) => w.id === "ws-joint-couple") || userWorkspaces[0];
     } else {
@@ -352,7 +356,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!currentUser) return null;
 
     const newWs: Workspace = {
-      id: "ws-" + Math.random().toString(36).substring(2, 9),
+      id: generateUuid(),
       name: name.trim(),
       type,
       owner_id: currentUser.id,
@@ -404,38 +408,59 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       activeWorkspaceId: workspaceId,
       activeRole: role,
     });
+
+    // Re-fetch finance data for the new workspace
+    try {
+      const { useFinanceStore } = await import("./financeStore");
+      useFinanceStore.getState().fetchData(currentUser.id, workspaceId);
+    } catch (_) {}
   },
 
   joinWorkspaceByCode: async (code: string) => {
     const currentUser = get().user;
     if (!currentUser) return false;
 
-    const ws = await db.workspaces.getByCode(code);
-    if (!ws) return false;
+    const cleanCode = code.trim();
 
-    let member = ws.members.find((m) => m.user_id === currentUser.id);
-    if (!member) {
-      member = {
-        user_id: currentUser.id,
-        name: currentUser.name || "User",
-        role: "editor",
-      };
-      ws.members.push(member);
-      await db.workspaces.save(ws);
+    // 1. Try secure RPC join in Supabase first
+    const rpcRes = await db.workspaces.joinByCodeRPC(cleanCode);
+    let targetWsId = rpcRes.workspace_id;
+    let targetRole: WorkspaceRole = (rpcRes.role as WorkspaceRole) || "editor";
+
+    // 2. If RPC was not used / returned false, fallback to direct query & addMember
+    if (!rpcRes.success || !targetWsId) {
+      const ws = await db.workspaces.getByCode(cleanCode);
+      if (!ws) return false;
+
+      targetWsId = ws.id;
+      const isOwner = ws.owner_id === currentUser.id;
+      targetRole = isOwner ? "owner" : "editor";
+
+      if (!isOwner) {
+        await db.workspaces.addMember(ws.id, currentUser.id, "editor", currentUser.name || "User");
+      }
     }
 
-    const userWorkspaces = await db.workspaces.list(currentUser.id);
-    const role: WorkspaceRole = ws.owner_id === currentUser.id ? "owner" : (member.role || "viewer");
-
+    // Force-invalidate localStorage cache
     if (typeof localStorage !== "undefined") {
-      localStorage.setItem("mf_active_workspace_id", ws.id);
+      localStorage.removeItem("mf_workspaces");
+      localStorage.setItem("mf_active_workspace_id", targetWsId);
     }
+
+    // Fetch fresh workspaces from DB
+    const userWorkspaces = await db.workspaces.list(currentUser.id);
 
     set({
       workspaces: userWorkspaces,
-      activeWorkspaceId: ws.id,
-      activeRole: role,
+      activeWorkspaceId: targetWsId,
+      activeRole: targetRole,
     });
+
+    // Re-fetch finance data immediately for the joined workspace
+    try {
+      const { useFinanceStore } = await import("./financeStore");
+      await useFinanceStore.getState().fetchData(currentUser.id, targetWsId);
+    } catch (_) {}
 
     return true;
   },

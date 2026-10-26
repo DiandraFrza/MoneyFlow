@@ -1,3 +1,5 @@
+/** @format */
+
 import React, { useState, useEffect } from "react";
 import { useFinanceStore } from "../../store/financeStore";
 import { useAuthStore } from "../../store/authStore";
@@ -10,6 +12,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select } from "../ui/select";
 import { AlertTriangle, Save } from "lucide-react";
+import { formatCurrencyInput, parseCurrencyInput } from "../../lib/utils";
 
 interface WalletConfigModalProps {
   isOpen: boolean;
@@ -54,7 +57,7 @@ export const WalletConfigModal: React.FC<WalletConfigModalProps> = ({ isOpen, wa
         name: wallet.name || "",
         type: wallet.type,
         provider: wallet.provider || "",
-        balance: wallet.balance.toString(),
+        balance: formatCurrencyInput(wallet.balance),
         color: wallet.color || "#2563EB",
         icon: wallet.icon || "Wallet",
         description: wallet.description || "",
@@ -85,7 +88,7 @@ export const WalletConfigModal: React.FC<WalletConfigModalProps> = ({ isOpen, wa
           name: formData.name,
           type: formData.type,
           provider: formData.provider || undefined,
-          balance: parseFloat(formData.balance) || 0,
+          balance: parseCurrencyInput(formData.balance),
           color: formData.color,
           icon: formData.icon,
           description: formData.description || undefined,
@@ -96,7 +99,7 @@ export const WalletConfigModal: React.FC<WalletConfigModalProps> = ({ isOpen, wa
           name: formData.name,
           type: formData.type,
           provider: formData.provider || undefined,
-          balance: parseFloat(formData.balance) || 0,
+          balance: parseCurrencyInput(formData.balance),
           color: formData.color,
           icon: formData.icon,
           description: formData.description || undefined,
@@ -149,7 +152,6 @@ export const WalletConfigModal: React.FC<WalletConfigModalProps> = ({ isOpen, wa
   return (
     <Dialog isOpen={isOpen} onClose={closeModal} title={title}>
       <div className="w-full">
-
         {mode === "delete" ? (
           // Delete confirmation
           <div className="space-y-4">
@@ -157,7 +159,7 @@ export const WalletConfigModal: React.FC<WalletConfigModalProps> = ({ isOpen, wa
               <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold text-red-900 dark:text-red-200">Konfirmasi Penghapusan</p>
-                <p className="text-sm text-red-800 dark:text-red-300 mt-1">Apakah Anda yakin ingin menghapus dompet "{wallet?.name}"? Tindakan ini tidak dapat dibatalkan.</p>
+                <p className="text-sm text-stone-800 font-bold mt-1">Apakah Anda yakin ingin menghapus dompet "{wallet?.name}"? Tindakan ini tidak dapat dibatalkan.</p>
               </div>
             </div>
 
@@ -224,11 +226,17 @@ export const WalletConfigModal: React.FC<WalletConfigModalProps> = ({ isOpen, wa
                 { value: "ShopeePay", label: "ShopeePay" },
                 { value: "LinkAja", label: "LinkAja" },
                 { value: "iSaku", label: "iSaku" },
+                // Investasi & Reksa Dana
+                { value: "Bibit", label: "Bibit (Reksadana/SBN)" },
+                { value: "Bareksa", label: "Bareksa (Investasi)" },
+                { value: "Pluang", label: "Pluang (Emas/Saham/Kripto)" },
+                { value: "Stockbit", label: "Stockbit (Saham)" },
+                { value: "Ajaib", label: "Ajaib" },
                 { value: "Other", label: "Lainnya" },
               ]}
             />
 
-            <Input type="number" label="Saldo (Rp)" placeholder="0" value={formData.balance} onChange={(e) => setFormData({ ...formData, balance: e.target.value })} />
+            <Input type="text" inputMode="numeric" label="Saldo (Rp)" placeholder="0" value={formData.balance} onChange={(e) => setFormData({ ...formData, balance: formatCurrencyInput(e.target.value) })} />
 
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-text-mutedLight tracking-wide">Pilih Warna</label>

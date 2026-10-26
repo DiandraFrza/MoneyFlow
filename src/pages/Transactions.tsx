@@ -1,6 +1,7 @@
 /** @format */
 
 import React, { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useFinanceStore } from "../store/financeStore";
 import { useAuthStore } from "../store/authStore";
@@ -11,13 +12,14 @@ import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { BeginnerGuide } from "../components/ui/BeginnerGuide";
 import { Button } from "../components/ui/button";
-import { Search, Download, Trash2, Calendar, Eye, Mailbox, ArrowUpRight, ArrowDownLeft, PiggyBank, Scale } from "lucide-react";
+import { Search, Download, Trash2, Calendar, Eye, Mailbox, ArrowUpRight, ArrowDownLeft, PiggyBank, Scale, Users } from "lucide-react";
 import { LazyViewport } from "../components/ui/lazy-viewport";
 import { useConfirm } from "../store/confirmStore";
 import { useToastStore } from "../store/toastStore";
 import { scaleInVariant } from "../utils/animation";
 
 export const Transactions: React.FC = () => {
+  const navigate = useNavigate();
   const { user, workspaces, activeWorkspaceId, activeRole } = useAuthStore();
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
   const isSharedWorkspace = activeWorkspace?.type === "couple" || activeWorkspace?.type === "family" || (activeWorkspace?.members && activeWorkspace.members.length > 1);
@@ -182,8 +184,14 @@ export const Transactions: React.FC = () => {
                 </span>
                 <Input type="text" placeholder="Cari deskripsi, kategori, dll..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 h-11" />
               </div>
-              {/* Export Buttons */}
-              <div className="flex gap-2">
+              {/* Export & Split Bill Buttons */}
+              <div className="flex flex-wrap gap-2">
+                <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.98 }} className="flex-1 md:flex-none">
+                  <Button onClick={() => navigate("/split-bill")} variant="outline" size="sm" className="w-full gap-2 font-bold h-11 text-xs border-2 border-[#1e1e1e] bg-[#fafafa] hover:bg-[#ff5722] hover:text-white transition-colors">
+                    <Users className="h-4 w-4 text-[#ff5722]" />
+                    Split Bill
+                  </Button>
+                </motion.div>
                 <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.98 }} className="flex-1 md:flex-none">
                   <Button onClick={handleExportExcel} variant="outline" size="sm" className="w-full gap-2 font-bold h-11 text-xs">
                     <Download className="h-4 w-4" />

@@ -1,3 +1,5 @@
+/** @format */
+
 import React, { useState, useEffect } from "react";
 import { useFinanceStore } from "../../store/financeStore";
 import { useAuthStore } from "../../store/authStore";
@@ -10,6 +12,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select } from "../ui/select";
 import { AlertTriangle, Save } from "lucide-react";
+import { formatCurrencyInput, parseCurrencyInput } from "../../lib/utils";
 
 interface DebtConfigModalProps {
   isOpen: boolean;
@@ -54,9 +57,9 @@ export const DebtConfigModal: React.FC<DebtConfigModalProps> = ({ isOpen, debt }
       setFormData({
         type: debt.type,
         person_name: debt.person_name,
-        amount: debt.amount.toString(),
+        amount: formatCurrencyInput(debt.amount),
         interest_rate: "0",
-        remaining_amount: debt.remaining_amount.toString(),
+        remaining_amount: formatCurrencyInput(debt.remaining_amount),
         due_date: debt.due_date || "",
         description: debt.description || "",
         walletId: "",
@@ -78,7 +81,7 @@ export const DebtConfigModal: React.FC<DebtConfigModalProps> = ({ isOpen, debt }
       return;
     }
 
-    if (!formData.amount || parseFloat(formData.amount) <= 0) {
+    if (!formData.amount || parseCurrencyInput(formData.amount) <= 0) {
       setError("Jumlah harus lebih dari 0");
       return;
     }
@@ -91,7 +94,7 @@ export const DebtConfigModal: React.FC<DebtConfigModalProps> = ({ isOpen, debt }
         await addDebt(user.id, {
           type: formData.type,
           person_name: formData.person_name,
-          amount: parseFloat(formData.amount),
+          amount: parseCurrencyInput(formData.amount),
           remaining_amount: parseFloat(formData.amount),
           due_date: formData.due_date || undefined,
           description: formData.description || undefined,
@@ -100,28 +103,26 @@ export const DebtConfigModal: React.FC<DebtConfigModalProps> = ({ isOpen, debt }
         // Automatically create a transaction if a wallet is selected
         if (formData.walletId) {
           const isBorrowed = formData.type === "borrowed";
-          const txDesc = `${isBorrowed ? "Pinjaman Masuk" : "Pinjaman Keluar"} (${formData.person_name})${
-            formData.description ? `: ${formData.description}` : ""
-          }`;
-          
+          const txDesc = `${isBorrowed ? "Pinjaman Masuk" : "Pinjaman Keluar"} (${formData.person_name})${formData.description ? `: ${formData.description}` : ""}`;
+
           await addTransaction(user.id, {
             wallet_id: formData.walletId,
             category_id: null,
             sub_category_id: null,
             type: isBorrowed ? "income" : "expense",
-            amount: parseFloat(formData.amount),
+            amount: parseCurrencyInput(formData.amount),
             description: txDesc,
             date: new Date().toISOString().split("T")[0],
           });
         }
-        
+
         showToast("Catatan utang berhasil dibuat!", "success");
       } else if (mode === "edit" && debt) {
         await updateDebt(user.id, debt.id, {
           type: formData.type,
           person_name: formData.person_name,
-          amount: parseFloat(formData.amount),
-          remaining_amount: parseFloat(formData.remaining_amount),
+          amount: parseCurrencyInput(formData.amount),
+          remaining_amount: parseCurrencyInput(formData.remaining_amount),
           due_date: formData.due_date || undefined,
           description: formData.description || undefined,
         });
@@ -173,12 +174,11 @@ export const DebtConfigModal: React.FC<DebtConfigModalProps> = ({ isOpen, debt }
   return (
     <Dialog isOpen={isOpen} onClose={closeModal} title={title}>
       <div className="w-full">
-
         {mode === "delete" ? (
           <div className="space-y-4">
-            <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
+            <div className="flex items-start gap-3 p-4 bg-red-50 rounded-lg border border-red-200 dark:border-red-800">
               <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-red-800 dark:text-red-300">Apakah Anda yakin ingin menghapus catatan utang ini?</p>
+              <p className="text-sm text-stone-800 font-bold">Apakah Anda yakin ingin menghapus catatan utang ini?</p>
             </div>
 
             {error && <div className="p-3 bg-red-100 border border-red-300 text-red-700 rounded text-sm">{error}</div>}
@@ -204,23 +204,28 @@ export const DebtConfigModal: React.FC<DebtConfigModalProps> = ({ isOpen, debt }
               ]}
             />
 
-            {mode === "add" && (
-              <Select
-                label="Salurkan ke Dompet"
-                value={formData.walletId}
-                onChange={(e) => setFormData({ ...formData, walletId: e.target.value })}
-                options={[
-                  { value: "", label: "-- Tanpa Hubungan Dompet --" },
-                  ...wallets.map((w) => ({ value: w.id, label: `${w.name} (Saldo: Rp${w.balance.toLocaleString("id-ID")})` })),
-                ]}
-              />
-            )}
+            {mode === "add" && <Select label="Salurkan ke Dompet" value={formData.walletId} onChange={(e) => setFormData({ ...formData, walletId: e.target.value })} options={[{ value: "", label: "-- Tanpa Hubungan Dompet --" }, ...wallets.map((w) => ({ value: w.id, label: `${w.name} (Saldo: Rp${w.balance.toLocaleString("id-ID")})` }))]} />}
 
             <Input label="Nama Orang / Instansi" placeholder="Budi, Bank BCA, dll." value={formData.person_name} onChange={(e) => setFormData({ ...formData, person_name: e.target.value })} required />
 
-            <Input type="number" label="Jumlah Utang (Rp)" placeholder="0" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} required />
+            <Input
+              type="text"
+              inputMode="numeric"
+              label="Jumlah Utang (Rp)"
+              placeholder="0"
+              value={formData.amount}
+              onChange={(e) => {
+                const formatted = formatCurrencyInput(e.target.value);
+                setFormData((prev) => ({
+                  ...prev,
+                  amount: formatted,
+                  remaining_amount: mode === "add" ? formatted : prev.remaining_amount,
+                }));
+              }}
+              required
+            />
 
-            <Input type="number" label="Sisa Utang (Rp)" placeholder="0" value={formData.remaining_amount} onChange={(e) => setFormData({ ...formData, remaining_amount: e.target.value })} required />
+            <Input type="text" inputMode="numeric" label="Sisa Utang (Rp)" placeholder="0" value={formData.remaining_amount} onChange={(e) => setFormData({ ...formData, remaining_amount: formatCurrencyInput(e.target.value) })} required />
 
             <Input type="number" label="Suku Bunga (%) - Opsional" placeholder="0" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} />
 

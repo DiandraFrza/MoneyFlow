@@ -1,3 +1,5 @@
+/** @format */
+
 import React, { useState, useEffect } from "react";
 import { useFinanceStore } from "../../store/financeStore";
 import { useAuthStore } from "../../store/authStore";
@@ -10,6 +12,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select } from "../ui/select";
 import { AlertTriangle, Save } from "lucide-react";
+import { formatCurrencyInput, parseCurrencyInput } from "../../lib/utils";
 
 interface BudgetConfigModalProps {
   isOpen: boolean;
@@ -50,7 +53,7 @@ export const BudgetConfigModal: React.FC<BudgetConfigModalProps> = ({ isOpen, bu
     } else if (mode === "edit" && budget) {
       setFormData({
         category_id: budget.category_id,
-        amount: budget.amount.toString(),
+        amount: formatCurrencyInput(budget.amount),
         month: budget.month,
         year: budget.year,
       });
@@ -71,7 +74,7 @@ export const BudgetConfigModal: React.FC<BudgetConfigModalProps> = ({ isOpen, bu
       return;
     }
 
-    if (!formData.amount || parseFloat(formData.amount) <= 0) {
+    if (!formData.amount || parseCurrencyInput(formData.amount) <= 0) {
       setError("Jumlah anggaran harus lebih dari 0");
       return;
     }
@@ -82,7 +85,7 @@ export const BudgetConfigModal: React.FC<BudgetConfigModalProps> = ({ isOpen, bu
     try {
       await setBudget(user.id, {
         category_id: formData.category_id,
-        amount: parseFloat(formData.amount),
+        amount: parseCurrencyInput(formData.amount),
         month: formData.month,
         year: formData.year,
       });
@@ -135,12 +138,11 @@ export const BudgetConfigModal: React.FC<BudgetConfigModalProps> = ({ isOpen, bu
   return (
     <Dialog isOpen={isOpen} onClose={closeModal} title={title}>
       <div className="w-full">
-
         {mode === "delete" ? (
           <div className="space-y-4">
             <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
               <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-red-800 dark:text-red-300">Apakah Anda yakin ingin menghapus anggaran ini?</p>
+              <p className="text-sm text-stone-800 font-bold">Apakah Anda yakin ingin menghapus anggaran ini?</p>
             </div>
 
             {error && <div className="p-3 bg-red-100 border border-red-300 text-red-700 rounded text-sm">{error}</div>}
@@ -158,7 +160,7 @@ export const BudgetConfigModal: React.FC<BudgetConfigModalProps> = ({ isOpen, bu
           <form onSubmit={handleSave} className="space-y-4">
             <Select label="Kategori Pengeluaran" value={formData.category_id} onChange={(e) => setFormData({ ...formData, category_id: e.target.value })} options={[{ value: "", label: "Pilih Kategori..." }, ...expenseCategories.map((c) => ({ value: c.id, label: c.name }))]} required />
 
-            <Input type="number" label="Jumlah Anggaran (Rp)" placeholder="0" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} required />
+            <Input type="text" inputMode="numeric" label="Jumlah Anggaran (Rp)" placeholder="0" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: formatCurrencyInput(e.target.value) })} required />
 
             <div className="grid grid-cols-2 gap-3">
               <Select

@@ -67,31 +67,56 @@ ALTER TABLE public.notifications
     ADD COLUMN IF NOT EXISTS action_type TEXT;
 
 -- =========================================================================
--- 8. ROW LEVEL SECURITY (RLS) & POLICIES UNTUK WORKSPACES
+-- 8. SECURITY DEFINER HELPER (Mencegah Infinite Recursion di RLS)
+-- =========================================================================
+
+CREATE OR REPLACE FUNCTION public.check_is_workspace_member(_ws_id UUID, _user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.workspace_members
+        WHERE workspace_id = _ws_id AND user_id = _user_id
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION public.check_is_workspace_owner(_ws_id UUID, _user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.workspaces
+        WHERE id = _ws_id AND owner_id = _user_id
+    );
+$$;
+
+-- =========================================================================
+-- 9. ROW LEVEL SECURITY (RLS) & POLICIES (Bebas Rekursi)
 -- =========================================================================
 
 ALTER TABLE public.workspaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_members ENABLE ROW LEVEL SECURITY;
 
--- Workspaces: User dapat melihat workspace miliknya atau di mana dia menjadi member
+-- Workspaces
 DROP POLICY IF EXISTS "Users can view workspaces they are members of" ON public.workspaces;
 CREATE POLICY "Users can view workspaces they are members of"
     ON public.workspaces FOR SELECT
     USING (
         owner_id = auth.uid() OR
-        EXISTS (
-            SELECT 1 FROM public.workspace_members wm
-            WHERE wm.workspace_id = public.workspaces.id AND wm.user_id = auth.uid()
-        )
+        public.check_is_workspace_member(id, auth.uid())
     );
 
--- Workspaces: Pemilik akun terdaftar dapat membuat workspace baru
 DROP POLICY IF EXISTS "Users can create their own workspaces" ON public.workspaces;
 CREATE POLICY "Users can create their own workspaces"
     ON public.workspaces FOR INSERT
     WITH CHECK (owner_id = auth.uid());
 
--- Workspaces: Hanya owner yang dapat mengubah/menghapus workspace
 DROP POLICY IF EXISTS "Owners can update their workspaces" ON public.workspaces;
 CREATE POLICY "Owners can update their workspaces"
     ON public.workspaces FOR UPDATE
@@ -102,77 +127,71 @@ CREATE POLICY "Owners can delete their workspaces"
     ON public.workspaces FOR DELETE
     USING (owner_id = auth.uid());
 
--- Workspace Members: Anggota bisa melihat member satu workspace
+-- Workspace Members
 DROP POLICY IF EXISTS "Users can view members of their workspaces" ON public.workspace_members;
 CREATE POLICY "Users can view members of their workspaces"
     ON public.workspace_members FOR SELECT
     USING (
         user_id = auth.uid() OR
-        EXISTS (
-            SELECT 1 FROM public.workspaces w
-            WHERE w.id = public.workspace_members.workspace_id AND (w.owner_id = auth.uid() OR EXISTS (
-                SELECT 1 FROM public.workspace_members wm2
-                WHERE wm2.workspace_id = w.id AND wm2.user_id = auth.uid()
-            ))
-        )
+        public.check_is_workspace_owner(workspace_id, auth.uid()) OR
+        public.check_is_workspace_member(workspace_id, auth.uid())
     );
 
--- Workspace Members: User bisa join atau owner bisa add member
 DROP POLICY IF EXISTS "Users can join or owners can add members" ON public.workspace_members;
 CREATE POLICY "Users can join or owners can add members"
     ON public.workspace_members FOR INSERT
     WITH CHECK (
         user_id = auth.uid() OR
-        EXISTS (
-            SELECT 1 FROM public.workspaces w
-            WHERE w.id = public.workspace_members.workspace_id AND w.owner_id = auth.uid()
-        )
+        public.check_is_workspace_owner(workspace_id, auth.uid())
     );
 
--- Workspace Members: Hanya owner workspace yang dapat update role
 DROP POLICY IF EXISTS "Only workspace owners can update member roles" ON public.workspace_members;
 CREATE POLICY "Only workspace owners can update member roles"
     ON public.workspace_members FOR UPDATE
     USING (
-        EXISTS (
-            SELECT 1 FROM public.workspaces w
-            WHERE w.id = public.workspace_members.workspace_id AND w.owner_id = auth.uid()
-        )
+        public.check_is_workspace_owner(workspace_id, auth.uid())
     );
 
--- Workspace Members: User bisa leave, atau owner bisa kick
 DROP POLICY IF EXISTS "Members can leave or owners can remove members" ON public.workspace_members;
 CREATE POLICY "Members can leave or owners can remove members"
     ON public.workspace_members FOR DELETE
     USING (
         user_id = auth.uid() OR
-        EXISTS (
-            SELECT 1 FROM public.workspaces w
-            WHERE w.id = public.workspace_members.workspace_id AND w.owner_id = auth.uid()
-        )
+        public.check_is_workspace_owner(workspace_id, auth.uid())
     );
 
--- Wallets & Transactions: Akses kolaborator ke data workspace bersama
+-- Wallets
 DROP POLICY IF EXISTS "Users can view wallets in their workspaces" ON public.wallets;
 CREATE POLICY "Users can view wallets in their workspaces"
     ON public.wallets FOR SELECT
     USING (
         user_id = auth.uid() OR
-        (workspace_id IS NOT NULL AND EXISTS (
-            SELECT 1 FROM public.workspace_members wm
-            WHERE wm.workspace_id = public.wallets.workspace_id AND wm.user_id = auth.uid()
-        ))
+        (workspace_id IS NOT NULL AND public.check_is_workspace_member(workspace_id, auth.uid()))
     );
 
+DROP POLICY IF EXISTS "Users can insert wallets" ON public.wallets;
+CREATE POLICY "Users can insert wallets"
+    ON public.wallets FOR INSERT
+    WITH CHECK (
+        user_id = auth.uid() OR
+        (workspace_id IS NOT NULL AND public.check_is_workspace_member(workspace_id, auth.uid()))
+    );
+
+DROP POLICY IF EXISTS "Users can update wallets" ON public.wallets;
+CREATE POLICY "Users can update wallets"
+    ON public.wallets FOR UPDATE
+    USING (
+        user_id = auth.uid() OR
+        (workspace_id IS NOT NULL AND public.check_is_workspace_member(workspace_id, auth.uid()))
+    );
+
+-- Transactions
 DROP POLICY IF EXISTS "Users can view transactions in their workspaces" ON public.transactions;
 CREATE POLICY "Users can view transactions in their workspaces"
     ON public.transactions FOR SELECT
     USING (
         user_id = auth.uid() OR
-        (workspace_id IS NOT NULL AND EXISTS (
-            SELECT 1 FROM public.workspace_members wm
-            WHERE wm.workspace_id = public.transactions.workspace_id AND wm.user_id = auth.uid()
-        ))
+        (workspace_id IS NOT NULL AND public.check_is_workspace_member(workspace_id, auth.uid()))
     );
 
 DROP POLICY IF EXISTS "Members can insert transactions into their workspaces" ON public.transactions;
@@ -180,16 +199,11 @@ CREATE POLICY "Members can insert transactions into their workspaces"
     ON public.transactions FOR INSERT
     WITH CHECK (
         user_id = auth.uid() OR
-        (workspace_id IS NOT NULL AND EXISTS (
-            SELECT 1 FROM public.workspace_members wm
-            WHERE wm.workspace_id = public.transactions.workspace_id 
-              AND wm.user_id = auth.uid()
-              AND wm.role IN ('owner', 'editor')
-        ))
+        (workspace_id IS NOT NULL AND public.check_is_workspace_member(workspace_id, auth.uid()))
     );
 
 -- =========================================================================
--- 9. TRIGGER OTOMATIS SAAT USER BARU DAFTAR (SIGN UP)
+-- 10. TRIGGER OTOMATIS SAAT USER BARU DAFTAR (SIGN UP)
 -- =========================================================================
 
 CREATE OR REPLACE FUNCTION public.handle_new_user_provisioning()

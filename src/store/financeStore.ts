@@ -28,7 +28,7 @@ interface FinanceState {
   lastFetchedUserId: string | null;
 
   // Actions
-  fetchData: (userId: string) => Promise<void>;
+  fetchData: (userId: string, workspaceId?: string) => Promise<void>;
 
   // Wallet actions
   addWallet: (userId: string, wallet: Omit<Wallet, "id" | "user_id">) => Promise<void>;
@@ -91,13 +91,14 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   loading: false,
   lastFetchedUserId: null,
 
-  fetchData: async (userId: string) => {
+  fetchData: async (userId: string, workspaceId?: string) => {
     if (!userId) {
       console.warn("[Finance] fetchData dipanggil tanpa userId, diabaikan");
       return;
     }
 
-    console.log("[Finance] fetchData mulai, userId:", userId);
+    const currentWsId = workspaceId || useAuthStore.getState().activeWorkspaceId || undefined;
+    console.log("[Finance] fetchData mulai, userId:", userId, "workspaceId:", currentWsId);
     set({ loading: true });
     
     try {
@@ -110,9 +111,9 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       // 3. Fetch all data in parallel
       console.log("[Finance] Mengambil semua data dari database...");
       const [wallets, transactions, transfers, budgets, savings, debts, recurring, notifications, categories, subcategories] = await Promise.all([
-        db.wallets.list(userId),
-        db.transactions.list(userId),
-        db.transfers.list(userId),
+        db.wallets.list(userId, currentWsId),
+        db.transactions.list(userId, currentWsId),
+        db.transfers.list(userId, currentWsId),
         db.budgets.list(userId),
         db.savings.list(userId),
         db.debts.list(userId),
@@ -173,7 +174,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     console.log("[Finance] addWallet, targetUserId:", targetUserId, "wallet:", enrichedWallet);
     try {
       await db.wallets.create(targetUserId, enrichedWallet);
-      const wallets = await db.wallets.list(userId);
+      const wallets = await db.wallets.list(userId, useAuthStore.getState().activeWorkspaceId || undefined);
       set({ wallets });
       console.log("[Finance] ✅ Wallet berhasil ditambahkan");
     } catch (err: any) {
@@ -187,7 +188,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     assertNotViewer("mengubah dompet");
     try {
       await db.wallets.update(userId, id, updates);
-      const wallets = await db.wallets.list(userId);
+      const wallets = await db.wallets.list(userId, useAuthStore.getState().activeWorkspaceId || undefined);
       set({ wallets });
     } catch (err: any) {
       console.error("[Finance] ❌ updateWallet error:", err.message);
@@ -200,7 +201,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     assertNotViewer("menghapus dompet");
     try {
       await db.wallets.delete(userId, id);
-      const wallets = await db.wallets.list(userId);
+      const wallets = await db.wallets.list(userId, useAuthStore.getState().activeWorkspaceId || undefined);
       set({ wallets });
     } catch (err: any) {
       console.error("[Finance] ❌ deleteWallet error:", err.message);
@@ -288,8 +289,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       
       // Refresh semua data yang mungkin berubah
       const [transactions, wallets, savings, debts] = await Promise.all([
-        db.transactions.list(userId),
-        db.wallets.list(userId),
+        db.transactions.list(userId, useAuthStore.getState().activeWorkspaceId || undefined),
+        db.wallets.list(userId, useAuthStore.getState().activeWorkspaceId || undefined),
         db.savings.list(userId),
         db.debts.list(userId),
       ]);
@@ -308,8 +309,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     try {
       await db.transactions.update(userId, id, updates);
       const [transactions, wallets] = await Promise.all([
-        db.transactions.list(userId),
-        db.wallets.list(userId),
+        db.transactions.list(userId, useAuthStore.getState().activeWorkspaceId || undefined),
+        db.wallets.list(userId, useAuthStore.getState().activeWorkspaceId || undefined),
       ]);
       set({ transactions, wallets });
     } catch (err: any) {
@@ -324,8 +325,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     try {
       await db.transactions.delete(userId, id);
       const [transactions, wallets] = await Promise.all([
-        db.transactions.list(userId),
-        db.wallets.list(userId),
+        db.transactions.list(userId, useAuthStore.getState().activeWorkspaceId || undefined),
+        db.wallets.list(userId, useAuthStore.getState().activeWorkspaceId || undefined),
       ]);
       set({ transactions, wallets });
     } catch (err: any) {
@@ -340,8 +341,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     try {
       await db.transfers.create(userId, tf);
       const [transfers, wallets] = await Promise.all([
-        db.transfers.list(userId),
-        db.wallets.list(userId),
+        db.transfers.list(userId, useAuthStore.getState().activeWorkspaceId || undefined),
+        db.wallets.list(userId, useAuthStore.getState().activeWorkspaceId || undefined),
       ]);
       set({ transfers, wallets });
     } catch (err: any) {

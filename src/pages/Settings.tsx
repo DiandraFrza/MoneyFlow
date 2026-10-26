@@ -11,7 +11,7 @@ import { Button } from "../components/ui/button";
 import { BeginnerGuide } from "../components/ui/BeginnerGuide";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
-import { cn } from "../lib/utils";
+import { cn, formatCurrencyInput, parseCurrencyInput } from "../lib/utils";
 import { User, Wallet as WalletIcon, Scale, Calendar, Plus, Trash2, PiggyBank, CheckCircle2, Tag, Users, Copy, Check, Share2, KeyRound } from "lucide-react";
 import { useToastStore } from "../store/toastStore";
 
@@ -82,8 +82,8 @@ export const Settings: React.FC = () => {
   const { openWalletModal, openBudgetModal, openDebtModal, openRecurringModal, openProfileModal } = useModalStore();
   const { showToast } = useToastStore();
 
-//
-//
+  //
+  //
 
   const activeTab = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -145,14 +145,14 @@ export const Settings: React.FC = () => {
   // 1. Profile State & Actions
   // -------------------------------------------------------------------------
   const [profileName, setProfileName] = useState(user?.name || "");
-  const [profileSalary, setProfileSalary] = useState(user?.monthly_salary?.toString() || "0");
-  const [profileTarget, setProfileTarget] = useState(user?.financial_target?.toString() || "0");
+  const [profileSalary, setProfileSalary] = useState(formatCurrencyInput(user?.monthly_salary || 0));
+  const [profileTarget, setProfileTarget] = useState(formatCurrencyInput(user?.financial_target || 0));
   const [profileSuccess, setProfileSuccess] = useState("");
 
   useEffect(() => {
     setProfileName(user?.name || "");
-    setProfileSalary(user?.monthly_salary?.toString() || "0");
-    setProfileTarget(user?.financial_target?.toString() || "0");
+    setProfileSalary(formatCurrencyInput(user?.monthly_salary || 0));
+    setProfileTarget(formatCurrencyInput(user?.financial_target || 0));
   }, [user]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -162,8 +162,8 @@ export const Settings: React.FC = () => {
 
     await updateProfile({
       name: profileName,
-      monthly_salary: parseFloat(profileSalary) || 0,
-      financial_target: parseFloat(profileTarget) || 0,
+      monthly_salary: parseCurrencyInput(profileSalary),
+      financial_target: parseCurrencyInput(profileTarget),
     });
     setProfileSuccess("Profil berhasil diperbarui!");
     setTimeout(() => setProfileSuccess(""), 3000);
@@ -188,7 +188,7 @@ export const Settings: React.FC = () => {
       type: newWalletType,
       provider: newWalletProvider || undefined,
       description: newWalletNotes || undefined,
-      balance: parseFloat(newWalletBalance) || 0,
+      balance: parseCurrencyInput(newWalletBalance),
       icon: "Wallet",
       color: newWalletColor,
     });
@@ -199,8 +199,6 @@ export const Settings: React.FC = () => {
     setNewWalletNotes("");
   };
 
-
-
   // -------------------------------------------------------------------------
   // 3. Budgeting State & Actions
   // -------------------------------------------------------------------------
@@ -209,7 +207,7 @@ export const Settings: React.FC = () => {
     const vals: Record<string, string> = {};
     budgets.forEach((b) => {
       if (b.month === currentMonth && b.year === currentYear) {
-        vals[b.category_id] = b.amount.toString();
+        vals[b.category_id] = formatCurrencyInput(b.amount);
       }
     });
     return vals;
@@ -219,7 +217,7 @@ export const Settings: React.FC = () => {
     const vals: Record<string, string> = {};
     budgets.forEach((b) => {
       if (b.month === currentMonth && b.year === currentYear) {
-        vals[b.category_id] = b.amount.toString();
+        vals[b.category_id] = formatCurrencyInput(b.amount);
       }
     });
     setBudgetValues((prev) => (Object.keys(prev).length === 0 ? vals : prev));
@@ -231,7 +229,7 @@ export const Settings: React.FC = () => {
     setBudgetSuccess("");
 
     for (const catId of expenseCategories.map((cat) => cat.id)) {
-      const amount = parseFloat(budgetValues[catId]) || 0;
+      const amount = parseCurrencyInput(budgetValues[catId]);
       await setBudget(user.id, {
         category_id: catId,
         amount: amount,
@@ -264,8 +262,8 @@ export const Settings: React.FC = () => {
       await addDebt(user.id, {
         type: debtType,
         person_name: debtPerson,
-        amount: parseFloat(debtAmount),
-        remaining_amount: parseFloat(debtAmount),
+        amount: parseCurrencyInput(debtAmount),
+        remaining_amount: parseCurrencyInput(debtAmount),
         due_date: debtDueDate || undefined,
         description: debtDesc || undefined,
       });
@@ -273,16 +271,14 @@ export const Settings: React.FC = () => {
       // Automatically create transaction if wallet is selected
       if (debtWallet) {
         const isBorrowed = debtType === "borrowed";
-        const txDesc = `${isBorrowed ? "Pinjaman Masuk" : "Pinjaman Keluar"} (${debtPerson})${
-          debtDesc ? `: ${debtDesc}` : ""
-        }`;
-        
+        const txDesc = `${isBorrowed ? "Pinjaman Masuk" : "Pinjaman Keluar"} (${debtPerson})${debtDesc ? `: ${debtDesc}` : ""}`;
+
         await addTransaction(user.id, {
           wallet_id: debtWallet,
           category_id: null,
           sub_category_id: null,
           type: isBorrowed ? "income" : "expense",
-          amount: parseFloat(debtAmount),
+          amount: parseCurrencyInput(debtAmount),
           description: txDesc,
           date: new Date().toISOString().split("T")[0],
         });
@@ -302,7 +298,7 @@ export const Settings: React.FC = () => {
 
   const handlePayDebt = async (debtId: string, amountToPay: string, payWalletId: string) => {
     if (!user) return;
-    const payVal = parseFloat(amountToPay);
+    const payVal = parseCurrencyInput(amountToPay);
     if (isNaN(payVal) || payVal <= 0) {
       showToast("Masukkan jumlah cicilan yang valid", "warning");
       return;
@@ -325,7 +321,7 @@ export const Settings: React.FC = () => {
       // Create transaction for payment
       const isBorrowed = targetDebt.type === "borrowed";
       const txDesc = `Pembayaran ${isBorrowed ? "Utang" : "Piutang"}: ${targetDebt.person_name}`;
-      
+
       await addTransaction(user.id, {
         wallet_id: payWalletId,
         category_id: null,
@@ -341,8 +337,6 @@ export const Settings: React.FC = () => {
       showToast("Gagal mencatat pembayaran utang", "error");
     }
   };
-
-
 
   // -------------------------------------------------------------------------
   // 5. Recurring State & Actions
@@ -371,7 +365,7 @@ export const Settings: React.FC = () => {
       wallet_id: recWallet,
       category_id: recCat || null,
       type: "expense", // defaults to recurring expense
-      amount: parseFloat(recAmount),
+      amount: parseCurrencyInput(recAmount),
       description: recDesc,
       frequency: recFreq,
       interval_day: parseInt(recDay) || 5,
@@ -381,8 +375,6 @@ export const Settings: React.FC = () => {
     setRecDesc("");
     setRecAmount("");
   };
-
-
 
   return (
     <div className="flex flex-col gap-6">
@@ -471,20 +463,9 @@ export const Settings: React.FC = () => {
                   <Users className="h-5 w-5 text-[#ff5722]" />
                   Kolaborasi Ruang Keuangan (Workspace)
                 </span>
-                <span
-                  className={cn(
-                    "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 border border-[#1e1e1e]",
-                    activeRole === "owner" && "bg-[#1e1e1e] text-white",
-                    activeRole === "editor" && "bg-[#ff5722] text-white",
-                    activeRole === "viewer" && "bg-[#ffffff] text-[#1e1e1e]"
-                  )}
-                >
-                  ROLE: {activeRole.toUpperCase()}
-                </span>
+                <span className={cn("text-[9px] font-black uppercase tracking-wider px-2 py-0.5 border border-[#1e1e1e]", activeRole === "owner" && "bg-[#1e1e1e] text-white", activeRole === "editor" && "bg-[#ff5722] text-white", activeRole === "viewer" && "bg-[#ffffff] text-[#1e1e1e]")}>ROLE: {activeRole.toUpperCase()}</span>
               </CardTitle>
-              <CardDescription>
-                Kelola ruang bersama pasangan/keluarga, kode undangan, serta kontrol peran anggota.
-              </CardDescription>
+              <CardDescription>Kelola ruang bersama pasangan/keluarga, kode undangan, serta kontrol peran anggota.</CardDescription>
             </CardHeader>
             <CardContent className="p-6 flex flex-col gap-6">
               {/* Active Workspace Info & Invite Code */}
@@ -494,35 +475,19 @@ export const Settings: React.FC = () => {
                     <p className="text-[10px] font-bold uppercase tracking-wider text-[#555555] mb-0.5">Ruang Saat Ini</p>
                     <h4 className="text-base font-bold text-[#1e1e1e] flex items-center gap-2">
                       {activeWorkspace.name}
-                      <span className="text-[9px] font-semibold uppercase px-1.5 py-0.2 border border-[#1e1e1e] bg-[#ffffff] text-[#555555]">
-                        {activeWorkspace.type}
-                      </span>
+                      <span className="text-[9px] font-semibold uppercase px-1.5 py-0.2 border border-[#1e1e1e] bg-[#ffffff] text-[#555555]">{activeWorkspace.type}</span>
                     </h4>
                     <div className="flex items-center gap-2 mt-2">
                       <span className="text-xs text-[#555555] font-medium">Kode Undangan:</span>
-                      <code className="px-2 py-0.5 bg-[#ffffff] border border-[#1e1e1e] font-mono font-bold text-xs text-[#ff5722]">
-                        {activeWorkspace.invite_code}
-                      </code>
+                      <code className="px-2 py-0.5 bg-[#ffffff] border border-[#1e1e1e] font-mono font-bold text-xs text-[#ff5722]">{activeWorkspace.invite_code}</code>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCopyInviteCode}
-                      className="flex-1 sm:flex-none text-xs font-bold gap-1.5 h-9"
-                    >
+                    <Button type="button" variant="outline" size="sm" onClick={handleCopyInviteCode} className="flex-1 sm:flex-none text-xs font-bold gap-1.5 h-9">
                       {isCodeCopied ? <Check className="h-3.5 w-3.5 text-[#356342]" /> : <Copy className="h-3.5 w-3.5" />}
                       {isCodeCopied ? "Tersalin!" : "Salin Kode"}
                     </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCopyInviteLink}
-                      className="flex-1 sm:flex-none text-xs font-bold gap-1.5 h-9"
-                    >
+                    <Button type="button" variant="outline" size="sm" onClick={handleCopyInviteLink} className="flex-1 sm:flex-none text-xs font-bold gap-1.5 h-9">
                       <Share2 className="h-3.5 w-3.5" />
                       Salin Link
                     </Button>
@@ -538,19 +503,9 @@ export const Settings: React.FC = () => {
                     {workspaces.map((ws) => {
                       const isSelected = ws.id === activeWorkspaceId;
                       return (
-                        <button
-                          key={ws.id}
-                          type="button"
-                          onClick={() => switchWorkspace(ws.id)}
-                          className={cn(
-                            "flex items-center justify-between p-3 border text-left transition-colors cursor-pointer",
-                            isSelected ? "border-2 border-[#1e1e1e] bg-[#1e1e1e] text-white font-bold" : "border-[#1e1e1e] bg-[#ffffff] hover:bg-[#f4f4f4] text-[#1e1e1e]"
-                          )}
-                        >
+                        <button key={ws.id} type="button" onClick={() => switchWorkspace(ws.id)} className={cn("flex items-center justify-between p-3 border text-left transition-colors cursor-pointer", isSelected ? "border-2 border-[#1e1e1e] bg-[#1e1e1e] text-white font-bold" : "border-[#1e1e1e] bg-[#ffffff] hover:bg-[#f4f4f4] text-[#1e1e1e]")}>
                           <span className="text-xs font-bold truncate">{ws.name}</span>
-                          <span className={cn("text-[9px] font-bold uppercase px-1 border", isSelected ? "border-white text-white" : "border-[#1e1e1e] text-[#555555]")}>
-                            {ws.type}
-                          </span>
+                          <span className={cn("text-[9px] font-bold uppercase px-1 border", isSelected ? "border-white text-white" : "border-[#1e1e1e] text-[#555555]")}>{ws.type}</span>
                         </button>
                       );
                     })}
@@ -560,9 +515,7 @@ export const Settings: React.FC = () => {
 
               {/* Members List & Role Switcher */}
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-[#555555] mb-2.5">
-                  Anggota Ruang ({activeWorkspace?.members?.length || 0})
-                </h4>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#555555] mb-2.5">Anggota Ruang ({activeWorkspace?.members?.length || 0})</h4>
                 <div className="flex flex-col gap-2">
                   {activeWorkspace?.members?.map((member) => {
                     const isOwner = member.role === "owner" || member.user_id === activeWorkspace.owner_id;
@@ -571,9 +524,7 @@ export const Settings: React.FC = () => {
                     return (
                       <div key={member.user_id} className="p-3 border border-[#1e1e1e] bg-[#fafafa] flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="h-8 w-8 bg-[#1e1e1e] text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
-                            {member.name.substring(0, 2).toUpperCase()}
-                          </div>
+                          <div className="h-8 w-8 bg-[#1e1e1e] text-white flex items-center justify-center font-bold text-xs flex-shrink-0">{member.name.substring(0, 2).toUpperCase()}</div>
                           <div className="min-w-0">
                             <p className="text-xs font-bold text-[#1e1e1e] truncate leading-tight">
                               {member.name} {member.user_id === user?.id && <span className="text-[#ff5722]">(Anda)</span>}
@@ -603,16 +554,7 @@ export const Settings: React.FC = () => {
                               </select>
                             </div>
                           ) : (
-                            <span
-                              className={cn(
-                                "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 border border-[#1e1e1e]",
-                                member.role === "owner" && "bg-[#1e1e1e] text-white",
-                                member.role === "editor" && "bg-[#ff5722] text-white",
-                                member.role === "viewer" && "bg-[#ffffff] text-[#1e1e1e]"
-                              )}
-                            >
-                              {member.role.toUpperCase()}
-                            </span>
+                            <span className={cn("text-[9px] font-black uppercase tracking-wider px-2 py-0.5 border border-[#1e1e1e]", member.role === "owner" && "bg-[#1e1e1e] text-white", member.role === "editor" && "bg-[#ff5722] text-white", member.role === "viewer" && "bg-[#ffffff] text-[#1e1e1e]")}>{member.role.toUpperCase()}</span>
                           )}
                         </div>
                       </div>
@@ -630,13 +572,7 @@ export const Settings: React.FC = () => {
                     Gabung Ruang dengan Kode
                   </h5>
                   <div className="flex gap-2">
-                    <Input
-                      placeholder="Contoh: BUDI-SITI-2026"
-                      value={joinCode}
-                      onChange={(e) => setJoinCode(e.target.value)}
-                      className="h-9 text-xs font-mono uppercase"
-                      required
-                    />
+                    <Input placeholder="Contoh: BUDI-SITI-2026" value={joinCode} onChange={(e) => setJoinCode(e.target.value)} className="h-9 text-xs font-mono uppercase" required />
                     <Button type="submit" size="sm" className="h-9 px-3 text-xs font-bold flex-shrink-0">
                       Gabung
                     </Button>
@@ -650,13 +586,7 @@ export const Settings: React.FC = () => {
                     Buat Ruang Baru
                   </h5>
                   <div className="flex flex-col sm:flex-row gap-2">
-                    <Input
-                      placeholder="Nama Ruang (e.g. Tabungan Rumah)"
-                      value={newWsName}
-                      onChange={(e) => setNewWsName(e.target.value)}
-                      className="h-9 text-xs flex-1"
-                      required
-                    />
+                    <Input placeholder="Nama Ruang (e.g. Tabungan Rumah)" value={newWsName} onChange={(e) => setNewWsName(e.target.value)} className="h-9 text-xs flex-1" required />
                     <Select
                       value={newWsType}
                       onChange={(e) => setNewWsType(e.target.value as any)}
@@ -723,7 +653,14 @@ export const Settings: React.FC = () => {
                     ]}
                   />
 
-                  <Input type="number" label="Saldo Awal (Rp)" placeholder="0" value={newWalletBalance} onChange={(e) => setNewWalletBalance(e.target.value)} />
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    label="Saldo Awal (Rp)"
+                    placeholder="0"
+                    value={newWalletBalance}
+                    onChange={(e) => setNewWalletBalance(formatCurrencyInput(e.target.value))}
+                  />
 
                   <Input label="Keterangan / Catatan (Opsional)" placeholder="Contoh: Rekening gaji utama atau saldo e-wallet" value={newWalletNotes} onChange={(e) => setNewWalletNotes(e.target.value)} />
 
@@ -754,7 +691,7 @@ export const Settings: React.FC = () => {
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
                 {wallets.map((w) => (
-                  <div key={w.id} className="flex items-center justify-between p-3.5 border rounded-xl shadow-soft-sm bg-white dark:bg-slate-900">
+                  <div key={w.id} className="flex items-center justify-between p-3.5 border rounded-xl shadow-soft-sm bg-white ">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-xl flex items-center justify-center text-white" style={{ backgroundColor: w.color }}>
                         <WalletIcon className="h-5 w-5" />
@@ -777,7 +714,7 @@ export const Settings: React.FC = () => {
                         </button>
                         {/* Prevent deleting if only 1 wallet remains */}
                         {activeRole !== "viewer" && wallets.length > 1 && (
-                          <button onClick={() => openWalletModal("delete", w.id)} className="p-2 rounded-lg bg-slate-50 hover:bg-red-50 text-text-mutedLight hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-950/20 transition-all btn-pressable">
+                          <button onClick={() => openWalletModal("delete", w.id)} className="p-2 border border-[#1e1e1e] bg-white hover:bg-red-50 text-[#555555] hover:text-red-500 transition-all btn-pressable">
                             <Trash2 className="h-4 w-4" />
                           </button>
                         )}
@@ -810,18 +747,19 @@ export const Settings: React.FC = () => {
                 {expenseCategories.map((cat) => {
                   const catBudget = budgets.find((b) => b.category_id === cat.id && b.month === 6 && b.year === 2026);
                   return (
-                    <div key={cat.id} className="grid grid-cols-2 items-center gap-4 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/10">
+                    <div key={cat.id} className="grid grid-cols-2 items-center gap-4 p-2 border border-[#1e1e1e] bg-white hover:bg-[#fafafa]">
                       <div className="flex items-center gap-2.5">
                         <span className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: cat.color }} />
                         <span className="text-xs font-bold">{cat.name}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
                           placeholder="Belum ada limit"
                           value={budgetValues[cat.id] || ""}
                           onChange={(e) => {
-                            setBudgetValues({ ...budgetValues, [cat.id]: e.target.value });
+                            setBudgetValues({ ...budgetValues, [cat.id]: formatCurrencyInput(e.target.value) });
                           }}
                           className="h-10 text-right flex-1 px-2"
                         />
@@ -830,8 +768,8 @@ export const Settings: React.FC = () => {
                             Edit
                           </button>
                         )}
-                        {catBudget && (
-                          activeRole !== "viewer" && <button onClick={() => openBudgetModal("delete", catBudget.id)} className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/20">
+                        {catBudget && activeRole !== "viewer" && (
+                          <button onClick={() => openBudgetModal("delete", catBudget.id)} className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/20">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         )}
@@ -878,19 +816,19 @@ export const Settings: React.FC = () => {
                     ]}
                   />
 
-                  <Select
-                    label="Gunakan Dompet (Salurkan Dana)"
-                    value={debtWallet}
-                    onChange={(e) => setDebtWallet(e.target.value)}
-                    options={[
-                      { value: "", label: "-- Tanpa Transaksi Dompet --" },
-                      ...wallets.map((w) => ({ value: w.id, label: `${w.name} (Saldo: Rp${w.balance.toLocaleString("id-ID")})` })),
-                    ]}
-                  />
+                  <Select label="Gunakan Dompet (Salurkan Dana)" value={debtWallet} onChange={(e) => setDebtWallet(e.target.value)} options={[{ value: "", label: "-- Tanpa Transaksi Dompet --" }, ...wallets.map((w) => ({ value: w.id, label: `${w.name} (Saldo: Rp${w.balance.toLocaleString("id-ID")})` }))]} />
 
                   <Input label="Nama Orang / Instansi" placeholder="Budi, Bank BCA, dll." value={debtPerson} onChange={(e) => setDebtPerson(e.target.value)} required />
 
-                  <Input type="number" label="Jumlah Uang (Rp)" placeholder="0" value={debtAmount} onChange={(e) => setDebtAmount(e.target.value)} required />
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    label="Jumlah Uang (Rp)"
+                    placeholder="0"
+                    value={debtAmount}
+                    onChange={(e) => setDebtAmount(formatCurrencyInput(e.target.value))}
+                    required
+                  />
 
                   <Input type="date" label="Jatuh Tempo (Opsional)" value={debtDueDate} onChange={(e) => setDebtDueDate(e.target.value)} />
 
@@ -917,7 +855,7 @@ export const Settings: React.FC = () => {
                   const payVal = payVals[d.id] || "";
                   const payWallet = payWallets[d.id] || "";
                   return (
-                    <div key={d.id} className="p-4 border rounded-xl shadow-soft-sm bg-white dark:bg-slate-900 flex flex-col gap-3">
+                    <div key={d.id} className="p-4 border rounded-xl shadow-soft-sm bg-white  flex flex-col gap-3">
                       <div className="flex items-center justify-between">
                         <div>
                           <span className={`text-[9px] font-bold uppercase rounded px-1.5 py-0.5 ${d.type === "borrowed" ? "bg-red-50 text-danger border border-red-100 dark:bg-red-950/20" : "bg-green-50 text-success border border-green-100 dark:bg-green-950/20"}`}>{d.type === "borrowed" ? "HUTANG KITA" : "PIUTANG KITA"}</span>
@@ -930,7 +868,7 @@ export const Settings: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center justify-between gap-y-2 border-t border-slate-50 dark:border-slate-800/40 pt-3 text-[10px]">
+                      <div className="flex flex-wrap items-center justify-between gap-y-2 border-t border-[#1e1e1e]/20 pt-3 text-[10px]">
                         <div className="text-text-mutedLight dark:text-text-mutedDark">
                           {d.due_date && (
                             <span>
@@ -943,11 +881,7 @@ export const Settings: React.FC = () => {
                         <div className="flex items-center gap-2">
                           {d.status !== "paid" && (
                             <div className="flex items-center gap-1.5">
-                              <select
-                                value={payWallet}
-                                onChange={(e) => setPayWallets({ ...payWallets, [d.id]: e.target.value })}
-                                className="h-8 text-[10px] w-28 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 py-1 focus:outline-none focus:border-primary text-text-light dark:text-text-dark"
-                              >
+                              <select value={payWallet} onChange={(e) => setPayWallets({ ...payWallets, [d.id]: e.target.value })} className="h-8 text-[10px] w-28 border border-[#1e1e1e] bg-white px-2 py-1 focus:outline-none focus:border-primary text-[#1e1e1e]">
                                 <option value="">-- Pilih Dompet --</option>
                                 {wallets.map((w) => (
                                   <option key={w.id} value={w.id}>
@@ -955,7 +889,14 @@ export const Settings: React.FC = () => {
                                   </option>
                                 ))}
                               </select>
-                              <Input type="number" placeholder="Bayar (Rp)" value={payVal} onChange={(e) => setPayVals({ ...payVals, [d.id]: e.target.value })} className="h-8 w-24 text-right px-2 text-[10px]" />
+                              <Input
+                                type="text"
+                                inputMode="numeric"
+                                placeholder="Bayar (Rp)"
+                                value={payVal}
+                                onChange={(e) => setPayVals({ ...payVals, [d.id]: formatCurrencyInput(e.target.value) })}
+                                className="h-8 w-24 text-right px-2 text-[10px]"
+                              />
                               <Button
                                 size="sm"
                                 onClick={() => {
@@ -973,7 +914,7 @@ export const Settings: React.FC = () => {
                             Edit
                           </button>
                           {activeRole !== "viewer" && (
-                            <button onClick={() => openDebtModal("delete", d.id)} className="p-1.5 rounded-lg bg-slate-50 hover:bg-red-50 text-text-mutedLight hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-950/20 transition-all">
+                            <button onClick={() => openDebtModal("delete", d.id)} className="p-1.5 border border-[#1e1e1e] bg-white hover:bg-red-50 text-[#555555] hover:text-red-500 transition-all">
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           )}
@@ -1002,7 +943,15 @@ export const Settings: React.FC = () => {
                 <form onSubmit={handleAddRecurring} className="flex flex-col gap-4">
                   <Input label="Nama Layanan / Catatan" placeholder="Netflix, IndiHome, Kos, Spotify" value={recDesc} onChange={(e) => setRecDesc(e.target.value)} required />
 
-                  <Input type="number" label="Nominal Transaksi (Rp)" placeholder="0" value={recAmount} onChange={(e) => setRecAmount(e.target.value)} required />
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    label="Nominal Transaksi (Rp)"
+                    placeholder="0"
+                    value={recAmount}
+                    onChange={(e) => setRecAmount(formatCurrencyInput(e.target.value))}
+                    required
+                  />
 
                   <Select label="Metode Pembayaran (Dompet)" value={recWallet} onChange={(e) => setRecWallet(e.target.value)} options={[{ value: "", label: "Pilih Dompet..." }, ...wallets.map((w) => ({ value: w.id, label: w.name }))]} />
 
@@ -1042,7 +991,7 @@ export const Settings: React.FC = () => {
                 {recurring.map((r) => {
                   const walletName = wallets.find((w) => w.id === r.wallet_id)?.name || "N/A";
                   return (
-                    <div key={r.id} className="p-3.5 border rounded-xl shadow-soft-sm bg-white dark:bg-slate-900 flex items-center justify-between gap-4">
+                    <div key={r.id} className="p-3.5 border rounded-xl shadow-soft-sm bg-white  flex items-center justify-between gap-4">
                       <div>
                         <h4 className="text-xs font-black leading-none">{r.description}</h4>
                         <div className="flex flex-wrap gap-2 text-[9px] text-text-mutedLight dark:text-text-mutedDark mt-1.5 uppercase font-bold">
@@ -1059,7 +1008,7 @@ export const Settings: React.FC = () => {
                           Edit
                         </button>
                         {activeRole !== "viewer" && (
-                          <button onClick={() => openRecurringModal("delete", r.id)} className="p-2 rounded-lg bg-slate-50 hover:bg-red-50 text-text-mutedLight hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-950/20 transition-all btn-pressable">
+                          <button onClick={() => openRecurringModal("delete", r.id)} className="p-2 border border-[#1e1e1e] bg-white hover:bg-red-50 text-[#555555] hover:text-red-500 transition-all btn-pressable">
                             <Trash2 className="h-4 w-4" />
                           </button>
                         )}
@@ -1095,55 +1044,33 @@ export const Settings: React.FC = () => {
                       onClick={() => {
                         setSelectedCategoryForSub(cat.id);
                       }}
-                      className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
-                        selectedCategoryForSub === cat.id
-                          ? "border-primary bg-primary/5 dark:bg-primary/10 font-bold"
-                          : "border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40"
-                      }`}
+                      className={`flex items-center justify-between p-3 border text-left transition-all ${selectedCategoryForSub === cat.id ? "border-[#ff5722] bg-[#ff5722]/10 font-bold" : "border-[#1e1e1e] bg-white hover:bg-[#fafafa]"}`}
                     >
                       <div className="flex items-center gap-3">
-                        <div
-                          className="h-3 w-3 rounded-full"
-                          style={{ backgroundColor: cat.color }}
-                        />
+                        <div className="h-3 w-3 rounded-full" style={{ backgroundColor: cat.color }} />
                         <span className="text-xs">{cat.name}</span>
                       </div>
-                      <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                        cat.type === "income" ? "bg-green-50 text-success dark:bg-green-950/20" : "bg-red-50 text-danger dark:bg-red-950/20"
-                      }`}>
-                        {cat.type === "income" ? "Masuk" : "Keluar"}
-                      </span>
+                      <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${cat.type === "income" ? "bg-green-50 text-success dark:bg-green-950/20" : "bg-red-50 text-danger dark:bg-red-950/20"}`}>{cat.type === "income" ? "Masuk" : "Keluar"}</span>
                     </button>
                   ))}
                 </div>
 
                 {/* Add Category Form */}
-                <form onSubmit={handleAddCategory} className="border-t border-slate-50 dark:border-slate-800/40 pt-4 flex flex-col gap-3">
+                <form onSubmit={handleAddCategory} className="border-t border-[#1e1e1e]/20 pt-4 flex flex-col gap-3">
                   <h4 className="text-xs font-bold">Tambah Kategori Baru</h4>
-                  <Input
-                    placeholder="Nama Kategori (misal: Zakat)"
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    required
-                    className="h-9 text-xs"
-                  />
+                  <Input placeholder="Nama Kategori (misal: Zakat)" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} required className="h-9 text-xs" />
                   <div className="grid grid-cols-2 gap-2">
                     <Select
                       value={newCategoryType}
                       onChange={(e) => setNewCategoryType(e.target.value as any)}
                       options={[
                         { value: "expense", label: "Pengeluaran" },
-                        { value: "income", label: "Pemasukan" }
+                        { value: "income", label: "Pemasukan" },
                       ]}
                       className="h-9 text-xs"
                     />
                     <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={newCategoryColor}
-                        onChange={(e) => setNewCategoryColor(e.target.value)}
-                        className="h-9 w-10 border rounded-lg cursor-pointer p-0.5"
-                      />
+                      <input type="color" value={newCategoryColor} onChange={(e) => setNewCategoryColor(e.target.value)} className="h-9 w-10 border rounded-lg cursor-pointer p-0.5" />
                       <span className="text-[10px] text-text-mutedLight dark:text-text-mutedDark">Warna</span>
                     </div>
                   </div>
@@ -1157,31 +1084,20 @@ export const Settings: React.FC = () => {
             {/* Subcategory List Column */}
             <Card className="lg:col-span-2">
               <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  Subkategori
-                </CardTitle>
-                <CardDescription>
-                  {selectedCategoryForSub
-                    ? `Daftar subkategori untuk "${categories.find((c) => c.id === selectedCategoryForSub)?.name}"`
-                    : "Pilih kategori di samping terlebih dahulu untuk mengelola subkategori."}
-                </CardDescription>
+                <CardTitle className="text-base flex items-center gap-2">Subkategori</CardTitle>
+                <CardDescription>{selectedCategoryForSub ? `Daftar subkategori untuk "${categories.find((c) => c.id === selectedCategoryForSub)?.name}"` : "Pilih kategori di samping terlebih dahulu untuk mengelola subkategori."}</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 {selectedCategoryForSub ? (
                   <>
                     <div className="flex flex-wrap gap-2 min-h-[100px]">
                       {subcategories.filter((sc) => sc.category_id === selectedCategoryForSub).length === 0 ? (
-                        <p className="text-xs text-text-mutedLight dark:text-text-mutedDark py-6 italic w-full text-center">
-                          Belum ada subkategori untuk kategori ini.
-                        </p>
+                        <p className="text-xs text-text-mutedLight dark:text-text-mutedDark py-6 italic w-full text-center">Belum ada subkategori untuk kategori ini.</p>
                       ) : (
                         subcategories
                           .filter((sc) => sc.category_id === selectedCategoryForSub)
                           .map((sc) => (
-                            <span
-                              key={sc.id}
-                              className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-xs font-semibold rounded-xl text-text-light dark:text-text-dark"
-                            >
+                            <span key={sc.id} className="px-3 py-1.5 bg-[#f4f4f4] border border-[#1e1e1e] text-xs font-semibold text-[#1e1e1e]">
                               {sc.name}
                             </span>
                           ))
@@ -1189,16 +1105,10 @@ export const Settings: React.FC = () => {
                     </div>
 
                     {/* Add Subcategory Form */}
-                    <form onSubmit={handleAddSubcategory} className="border-t border-slate-50 dark:border-slate-800/40 pt-4 flex flex-col gap-3 max-w-sm">
+                    <form onSubmit={handleAddSubcategory} className="border-t border-[#1e1e1e]/20 pt-4 flex flex-col gap-3 max-w-sm">
                       <h4 className="text-xs font-bold">Tambah Subkategori Baru</h4>
                       <div className="flex gap-2">
-                        <Input
-                          placeholder="Nama Subkategori (misal: Kopi Sore)"
-                          value={newSubcategoryName}
-                          onChange={(e) => setNewSubcategoryName(e.target.value)}
-                          required
-                          className="h-10 text-xs flex-1"
-                        />
+                        <Input placeholder="Nama Subkategori (misal: Kopi Sore)" value={newSubcategoryName} onChange={(e) => setNewSubcategoryName(e.target.value)} required className="h-10 text-xs flex-1" />
                         <Button type="submit" className="h-10 text-xs font-bold px-4">
                           Tambah
                         </Button>
@@ -1206,7 +1116,7 @@ export const Settings: React.FC = () => {
                     </form>
                   </>
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-12 text-slate-300 dark:text-slate-700">
+                  <div className="flex flex-col items-center justify-center py-12 text-[#888888]">
                     <Tag className="h-12 w-12 stroke-[1.5]" />
                     <p className="text-xs text-text-mutedLight dark:text-text-mutedDark mt-2">Pilih kategori untuk melihat subkategori</p>
                   </div>

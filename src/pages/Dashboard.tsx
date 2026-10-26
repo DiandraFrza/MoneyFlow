@@ -3,7 +3,7 @@
 import React, { Suspense, useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowDownLeft, ArrowDown, ArrowLeftRight, ArrowUpRight, ArrowUp, ChevronRight, CircleHelp, CreditCard, Eye, EyeOff, Plus, Search, Sparkles, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowDown, ArrowLeftRight, ArrowUpRight, ArrowUp, ChevronRight, CircleHelp, CreditCard, Eye, EyeOff, Plus, Search, Sparkles, Users, Wallet } from "lucide-react";
 import { useAuthStore } from "../store/authStore";
 import { useFinanceStore } from "../store/financeStore";
 import { useModalStore } from "../store/modalStore";
@@ -33,7 +33,7 @@ const greetingForHour = (hour: number) => {
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user, workspaces, activeWorkspaceId, activeRole } = useAuthStore();
+  const { user, workspaces, activeWorkspaceId, activeRole, switchWorkspace } = useAuthStore();
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
   const isSharedWorkspace = activeWorkspace?.type === "couple" || activeWorkspace?.type === "family" || (activeWorkspace?.members && activeWorkspace.members.length > 1);
 
@@ -219,6 +219,41 @@ export const Dashboard: React.FC = () => {
         </div>
       </motion.header>
 
+      {/* RUANG BERSAMA CONTEXT BANNER */}
+      {isSharedWorkspace && activeWorkspace && (
+        <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="mb-6 p-4 border-2 border-[#1e1e1e] bg-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 bg-[#1e1e1e] text-[#ff5722] flex items-center justify-center font-black shrink-0 border border-[#1e1e1e]">
+              <Users className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#ff5722]">Ruang Bersama Aktif</span>
+                <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 border border-[#1e1e1e] bg-[#f4f4f4] text-[#1e1e1e]">{activeWorkspace.type}</span>
+              </div>
+              <h3 className="text-base font-black text-[#1e1e1e] leading-tight mt-0.5">{activeWorkspace.name}</h3>
+              <p className="text-xs text-[#555555] font-medium mt-0.5">
+                Peran Anda: <strong className="text-[#1e1e1e] uppercase">{activeRole}</strong> ({activeRole === "owner" ? "Pemilik Ruang" : activeRole === "editor" ? "Bisa Catat & Edit" : "Hanya Melihat"})
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            {workspaces.find((w) => w.type === "personal" && w.owner_id === user?.id) && (
+              <button
+                type="button"
+                onClick={() => {
+                  const personal = workspaces.find((w) => w.type === "personal" && w.owner_id === user?.id);
+                  if (personal) switchWorkspace(personal.id);
+                }}
+                className="px-3 py-1.5 border border-[#1e1e1e] bg-[#fafafa] hover:bg-[#1e1e1e] hover:text-white text-xs font-bold transition-colors cursor-pointer"
+              >
+                ← Kembali ke Ruang Pribadi
+              </button>
+            )}
+          </div>
+        </motion.div>
+      )}
+
       {/* OVERVIEW GRID: Kartu muncul berurutan (Stagger) */}
       <motion.section variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} className="mf-overview-grid" aria-label="Ringkasan keuangan">
         <motion.article variants={fadeUpVariant} whileHover={{ y: -3 }} transition={{ duration: 0.2 }} className="mf-balance-card">
@@ -226,13 +261,7 @@ export const Dashboard: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <p className="mf-card-label">Total saldo</p>
-                <button
-                  type="button"
-                  onClick={togglePrivacy}
-                  className="h-6 w-6 flex items-center justify-center border border-[#1e1e1e] bg-[#ffffff] hover:bg-[#1e1e1e] hover:text-white text-[#1e1e1e] transition-colors cursor-pointer"
-                  title={isBalanceHidden ? "Tampilkan Saldo" : "Sembunyikan Saldo (Privacy Mode)"}
-                  aria-label={isBalanceHidden ? "Tampilkan Saldo" : "Sembunyikan Saldo"}
-                >
+                <button type="button" onClick={togglePrivacy} className="h-6 w-6 flex items-center justify-center border border-[#1e1e1e] bg-[#ffffff] hover:bg-[#1e1e1e] hover:text-white text-[#1e1e1e] transition-colors cursor-pointer" title={isBalanceHidden ? "Tampilkan Saldo" : "Sembunyikan Saldo (Privacy Mode)"} aria-label={isBalanceHidden ? "Tampilkan Saldo" : "Sembunyikan Saldo"}>
                   {isBalanceHidden ? <EyeOff size={13} /> : <Eye size={13} />}
                 </button>
               </div>
@@ -286,11 +315,7 @@ export const Dashboard: React.FC = () => {
           <CircleHelp size={19} aria-hidden="true" />
         </div>
         <div className="mf-quick-actions">
-          {activeRole === "viewer" && (
-            <div className="p-3 border border-[#1e1e1e] bg-[#f4f4f4] flex items-center justify-center col-span-2 sm:col-span-4 text-xs font-bold text-[#555555] uppercase tracking-wider mb-2">
-              Aksi Catat Dinonaktifkan (Role: Viewer)
-            </div>
-          )}
+          {activeRole === "viewer" && <div className="p-3 border border-[#1e1e1e] bg-[#f4f4f4] flex items-center justify-center col-span-2 sm:col-span-4 text-xs font-bold text-[#555555] uppercase tracking-wider mb-2">Aksi Catat Dinonaktifkan (Role: Viewer)</div>}
           <motion.button whileHover={activeRole !== "viewer" ? { y: -2 } : {}} whileTap={activeRole !== "viewer" ? { scale: 0.98 } : {}} type="button" disabled={activeRole === "viewer"} onClick={() => openQuickAdd("transfer")} className={`mf-action-button ${activeRole === "viewer" ? "opacity-40 cursor-not-allowed" : ""}`}>
             <span className="mf-action-icon mf-action-icon-kirim">
               <ArrowUpRight size={20} />
@@ -309,13 +334,13 @@ export const Dashboard: React.FC = () => {
               <small>Catat pemasukan</small>
             </span>
           </motion.button>
-          <motion.button whileHover={activeRole !== "viewer" ? { y: -2 } : {}} whileTap={activeRole !== "viewer" ? { scale: 0.98 } : {}} type="button" disabled={activeRole === "viewer"} onClick={() => openQuickAdd("income")} className={`mf-action-button ${activeRole === "viewer" ? "opacity-40 cursor-not-allowed" : ""}`}>
-            <span className="mf-action-icon mf-action-icon-isi">
-              <Plus size={20} />
+          <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} type="button" onClick={() => navigate("/split-bill")} className="mf-action-button">
+            <span className="mf-action-icon bg-[#ff5722] text-white">
+              <Users size={20} className="text-[#1e1e1e]" />
             </span>
             <span>
-              <strong>Isi saldo</strong>
-              <small>Tambah pemasukan</small>
+              <strong>Split Bill</strong>
+              <small>Patungan cepat</small>
             </span>
           </motion.button>
           <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} type="button" onClick={() => navigate("/settings?tab=wallets")} className="mf-action-button">
@@ -358,11 +383,7 @@ export const Dashboard: React.FC = () => {
                     <div className="mf-activity-description">
                       <div className="flex items-center gap-2 flex-wrap">
                         <strong>{activity.description}</strong>
-                        {activity.created_by_name && isSharedWorkspace && (
-                          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 border border-[#1e1e1e] bg-[#f4f4f4] text-[#1e1e1e]">
-                            Oleh: {activity.created_by_name}
-                          </span>
-                        )}
+                        {activity.created_by_name && isSharedWorkspace && <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 border border-[#1e1e1e] bg-[#f4f4f4] text-[#1e1e1e]">Oleh: {activity.created_by_name}</span>}
                       </div>
                       <span>
                         {category?.name || (isTransfer ? "Transfer" : "Transaksi")} · {wallet?.name || "Dompet"} · {displayDate(activity.date)}

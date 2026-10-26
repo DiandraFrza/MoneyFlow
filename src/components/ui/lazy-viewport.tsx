@@ -63,7 +63,7 @@ export const LazyViewport: React.FC<LazyViewportProps> = ({
       ) : (
         fallback || (
           <div 
-            className="w-full bg-slate-100/50 dark:bg-slate-800/40 rounded-2xl animate-pulse"
+            className="w-full bg-[#f0f0f0] border border-[#1e1e1e] animate-pulse"
             style={{ height: height === "auto" ? "150px" : height }}
           />
         )

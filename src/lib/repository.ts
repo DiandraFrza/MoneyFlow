@@ -4,7 +4,8 @@
 // Coordinates data between UI/State and Supabase or LocalStorage fallback
 
 import { supabase, isSupabaseConfigured } from "./supabase";
-import type { UserProfile, UserSettings, Wallet, Category, SubCategory, Transaction, WalletTransfer, Budget, SavingsGoal, Debt, RecurringTransaction, AppNotification, FinancialHealthLog, Workspace } from "../types";
+import { isValidUuid } from "./utils";
+import type { UserProfile, UserSettings, Wallet, Category, SubCategory, Transaction, WalletTransfer, Budget, SavingsGoal, Debt, RecurringTransaction, AppNotification, FinancialHealthLog, Workspace, WorkspaceRole, SplitBill } from "../types";
 
 // =========================================================================
 // DEBUG HELPER
@@ -55,6 +56,9 @@ const DEFAULT_CATEGORIES: Category[] = [
   { id: "cat-hiburan", user_id: null, name: "Hiburan", type: "expense", icon: "Gamepad2", color: "#10B981" },
   { id: "cat-kesehatan", user_id: null, name: "Kesehatan", type: "expense", icon: "HeartPulse", color: "#14B8A6" },
   { id: "cat-pendidikan", user_id: null, name: "Pendidikan", type: "expense", icon: "GraduationCap", color: "#0EA5E9" },
+  { id: "cat-sosial", user_id: null, name: "Zakat, Infaq & Sedekah (ZISWAF)", type: "expense", icon: "HeartHandshake", color: "#059669" },
+  { id: "cat-keluarga", user_id: null, name: "Kondangan, THR & Mudik", type: "expense", icon: "Users", color: "#7C3AED" },
+  { id: "cat-arisan", user_id: null, name: "Arisan & Komunitas", type: "expense", icon: "Coins", color: "#D97706" },
   { id: "cat-lainnya", user_id: null, name: "Lainnya", type: "expense", icon: "HelpCircle", color: "#6B7280" },
   // Income Categories
   { id: "cat-gaji", user_id: null, name: "Gaji Bulanan", type: "income", icon: "DollarSign", color: "#10B981" },
@@ -86,6 +90,8 @@ const DEFAULT_SUB_CATEGORIES: SubCategory[] = [
   { id: "sub-motor", category_id: "cat-cicilan", name: "Cicilan Motor" },
   { id: "sub-hp", category_id: "cat-cicilan", name: "Cicilan HP" },
   { id: "sub-laptop", category_id: "cat-cicilan", name: "Cicilan Laptop" },
+  { id: "sub-paylater", category_id: "cat-cicilan", name: "PayLater (Shopee/GoPay)" },
+  { id: "sub-kredivo", category_id: "cat-cicilan", name: "Kredivo / Kartu Kredit" },
   // Belanja
   { id: "sub-shopee", category_id: "cat-belanja", name: "Shopee" },
   { id: "sub-tokped", category_id: "cat-belanja", name: "Tokopedia" },
@@ -95,6 +101,17 @@ const DEFAULT_SUB_CATEGORIES: SubCategory[] = [
   { id: "sub-nongkrong", category_id: "cat-hiburan", name: "Nongkrong" },
   { id: "sub-bioskop", category_id: "cat-hiburan", name: "Bioskop" },
   { id: "sub-game", category_id: "cat-hiburan", name: "Game" },
+  // Zakat & Sosial
+  { id: "sub-zakat", category_id: "cat-sosial", name: "Zakat Fitrah / Mal" },
+  { id: "sub-infaq", category_id: "cat-sosial", name: "Infaq & Sedekah" },
+  { id: "sub-qurban", category_id: "cat-sosial", name: "Tabungan Qurban" },
+  // Tradisi & Keluarga
+  { id: "sub-kondangan", category_id: "cat-keluarga", name: "Kondangan / Hajatan" },
+  { id: "sub-mudik", category_id: "cat-keluarga", name: "Mudik Lebaran / Liburan" },
+  { id: "sub-thrfam", category_id: "cat-keluarga", name: "Bagi-Bagi THR Keluarga" },
+  // Arisan
+  { id: "sub-arisan-rt", category_id: "cat-arisan", name: "Arisan RT / Lingkungan" },
+  { id: "sub-arisan-fam", category_id: "cat-arisan", name: "Arisan Keluarga / Teman" },
 ];
 
 // Generate dynamic dates relative to current date
@@ -461,19 +478,33 @@ export const db = {
   // WALLETS
   // -----------------------------------------------------------------------
   wallets: {
-    list: async (userId: string): Promise<Wallet[]> => {
+    list: async (userId: string, workspaceId?: string): Promise<Wallet[]> => {
       if (isSupabaseConfigured && userId !== "local-user") {
-        console.log("[DB] LIST wallets, user_id:", userId);
-        const { data, error } = await supabase.from("wallets").select("*").eq("user_id", userId).order("name");
-        dbLog("SELECT", "wallets", { userId, count: data?.length }, error);
+        console.log("[DB] LIST wallets, user_id:", userId, "workspace_id:", workspaceId);
+        let query = supabase.from("wallets").select("*");
+        if (workspaceId && isValidUuid(workspaceId)) {
+          query = query.or(`workspace_id.eq.${workspaceId},and(user_id.eq.${userId},workspace_id.is.null)`);
+        } else {
+          query = query.eq("user_id", userId);
+        }
+        const { data, error } = await query.order("name");
+        dbLog("SELECT", "wallets", { userId, workspaceId, count: data?.length }, error);
         if (!error && data) return data;
         if (error) console.error("[DB] wallets list error:", error);
       }
-      return getFilteredLS<Wallet>("mf_wallets", userId);
+      const list = getFilteredLS<Wallet>("mf_wallets", userId);
+      if (workspaceId) {
+        return list.filter((w) => w.workspace_id === workspaceId || !w.workspace_id);
+      }
+      return list;
     },
     create: async (userId: string, wallet: Omit<Wallet, "id" | "user_id">): Promise<Wallet> => {
       if (isSupabaseConfigured && userId !== "local-user") {
-        const payload = { ...wallet, user_id: userId };
+        const payload = {
+          ...wallet,
+          user_id: userId,
+          workspace_id: isValidUuid(wallet.workspace_id) ? wallet.workspace_id : null,
+        };
         console.log("[DB] INSERT wallet:", payload);
         const { data, error } = await supabase.from("wallets").insert([payload]).select().single();
         dbLog("INSERT", "wallets", payload, error);
@@ -488,8 +519,14 @@ export const db = {
     },
     update: async (userId: string, id: string, updates: Partial<Wallet>): Promise<Wallet> => {
       if (isSupabaseConfigured && userId !== "local-user") {
-        console.log("[DB] UPDATE wallet, id:", id, "updates:", updates);
-        const { data, error } = await supabase.from("wallets").update(updates).eq("id", id).eq("user_id", userId).select().single();
+        const sanitizedUpdates = {
+          ...updates,
+          ...(updates.workspace_id !== undefined ? {
+            workspace_id: isValidUuid(updates.workspace_id) ? updates.workspace_id : null,
+          } : {}),
+        };
+        console.log("[DB] UPDATE wallet, id:", id, "updates:", sanitizedUpdates);
+        const { data, error } = await supabase.from("wallets").update(sanitizedUpdates).eq("id", id).eq("user_id", userId).select().single();
         dbLog("UPDATE", "wallets", { id, updates }, error);
         if (!error && data) return data;
         if (error) throw new Error(`Gagal update wallet: ${error.message}`);
@@ -665,15 +702,24 @@ export const db = {
   // TRANSACTIONS
   // -----------------------------------------------------------------------
   transactions: {
-    list: async (userId: string): Promise<Transaction[]> => {
+    list: async (userId: string, workspaceId?: string): Promise<Transaction[]> => {
       if (isSupabaseConfigured && userId !== "local-user") {
-        console.log("[DB] LIST transactions, user_id:", userId);
-        const { data, error } = await supabase.from("transactions").select("*").eq("user_id", userId).order("date", { ascending: false });
-        dbLog("SELECT", "transactions", { userId, count: data?.length }, error);
+        console.log("[DB] LIST transactions, user_id:", userId, "workspace_id:", workspaceId);
+        let query = supabase.from("transactions").select("*");
+        if (workspaceId && isValidUuid(workspaceId)) {
+          query = query.or(`workspace_id.eq.${workspaceId},and(user_id.eq.${userId},workspace_id.is.null)`);
+        } else {
+          query = query.eq("user_id", userId);
+        }
+        const { data, error } = await query.order("date", { ascending: false });
+        dbLog("SELECT", "transactions", { userId, workspaceId, count: data?.length }, error);
         if (!error && data) return data;
         if (error) console.error("[DB] transactions list error:", error);
       }
       const txs = getFilteredLS<Transaction>("mf_transactions", userId);
+      if (workspaceId) {
+        return txs.filter((t) => t.workspace_id === workspaceId || !t.workspace_id).sort((a, b) => b.date.localeCompare(a.date));
+      }
       if (userId === "user-joint") {
         return txs
           .map((t) => ({
@@ -686,7 +732,12 @@ export const db = {
     },
     create: async (userId: string, tx: Omit<Transaction, "id" | "user_id">): Promise<Transaction> => {
       if (isSupabaseConfigured && userId !== "local-user") {
-        const payload = { ...tx, user_id: userId };
+        const payload = {
+          ...tx,
+          user_id: userId,
+          workspace_id: isValidUuid(tx.workspace_id) ? tx.workspace_id : null,
+          created_by_id: isValidUuid(tx.created_by_id) ? tx.created_by_id : null,
+        };
         console.log("[DB] INSERT transaction:", payload);
         const { data, error } = await supabase.from("transactions").insert([payload]).select().single();
         dbLog("INSERT", "transactions", payload, error);
@@ -746,7 +797,16 @@ export const db = {
     },
     update: async (userId: string, id: string, updates: Partial<Transaction>): Promise<Transaction> => {
       if (isSupabaseConfigured && userId !== "local-user") {
-        const { data, error } = await supabase.from("transactions").update(updates).eq("id", id).select().single();
+        const sanitizedUpdates = {
+          ...updates,
+          ...(updates.workspace_id !== undefined ? {
+            workspace_id: isValidUuid(updates.workspace_id) ? updates.workspace_id : null,
+          } : {}),
+          ...(updates.created_by_id !== undefined ? {
+            created_by_id: isValidUuid(updates.created_by_id) ? updates.created_by_id : null,
+          } : {}),
+        };
+        const { data, error } = await supabase.from("transactions").update(sanitizedUpdates).eq("id", id).select().single();
         if (!error && data) return data;
       }
 
@@ -821,9 +881,13 @@ export const db = {
   // TRANSFERS
   // -----------------------------------------------------------------------
   transfers: {
-    list: async (userId: string): Promise<WalletTransfer[]> => {
+    list: async (userId: string, _workspaceId?: string): Promise<WalletTransfer[]> => {
       if (isSupabaseConfigured && userId !== "local-user") {
-        const { data, error } = await supabase.from("wallet_transfers").select("*").eq("user_id", userId).order("date", { ascending: false });
+        const { data, error } = await supabase
+          .from("wallet_transfers")
+          .select("*")
+          .eq("user_id", userId)
+          .order("date", { ascending: false });
         if (!error && data) return data;
       }
       return getFilteredLS<WalletTransfer>("mf_transfers", userId).sort((a, b) => b.date.localeCompare(a.date));
@@ -1186,6 +1250,61 @@ export const db = {
   },
   workspaces: {
     list: async (userId?: string): Promise<Workspace[]> => {
+      if (isSupabaseConfigured && userId && userId !== "local-user" && isValidUuid(userId)) {
+        try {
+          // Fetch workspaces where user is owner OR a member via workspace_members
+          const { data: ownedData } = await supabase
+            .from("workspaces")
+            .select("id, name, type, owner_id, invite_code, created_at, workspace_members(user_id, role)")
+            .eq("owner_id", userId);
+          const { data: memberData } = await supabase
+            .from("workspace_members")
+            .select("workspace_id, role")
+            .eq("user_id", userId);
+          const memberWsIds = (memberData || []).map((m: any) => m.workspace_id).filter(Boolean);
+          let joinedData: any[] = [];
+          if (memberWsIds.length > 0) {
+            const { data } = await supabase
+              .from("workspaces")
+              .select("id, name, type, owner_id, invite_code, created_at, workspace_members(user_id, role)")
+              .in("id", memberWsIds);
+            joinedData = data || [];
+          }
+          const allWs = [...(ownedData || []), ...joinedData.filter((jw: any) => !(ownedData || []).find((ow: any) => ow.id === jw.id))];
+          if (allWs.length > 0) {
+            // Fetch real member profile names so users see 'Danda' / 'Danda404' instead of 'Anggota'
+            const userIdsToFetch = Array.from(
+              new Set(allWs.flatMap((ws: any) => (ws.workspace_members || []).map((m: any) => m.user_id).concat(ws.owner_id)))
+            ).filter((id) => isValidUuid(id));
+
+            let nameMap: Record<string, string> = {};
+            if (userIdsToFetch.length > 0) {
+              try {
+                const { data: profs } = await supabase.from("profiles").select("id, name").in("id", userIdsToFetch);
+                (profs || []).forEach((p: any) => {
+                  if (p.id && p.name) nameMap[p.id] = p.name;
+                });
+              } catch (_) {}
+            }
+
+            return allWs.map((ws: any) => ({
+              id: ws.id,
+              name: ws.name,
+              type: ws.type,
+              owner_id: ws.owner_id,
+              invite_code: ws.invite_code,
+              created_at: ws.created_at,
+              members: (ws.workspace_members || []).map((m: any) => ({
+                user_id: m.user_id,
+                name: nameMap[m.user_id] || (m.user_id === ws.owner_id ? "Owner" : "Anggota"),
+                role: m.role,
+              })),
+            }));
+          }
+        } catch (err) {
+          console.error("[DB] Supabase workspaces error:", err);
+        }
+      }
       let list = getLS<Workspace[]>("mf_workspaces");
       if (!list || list.length === 0) {
         list = [...DEFAULT_WORKSPACES];
@@ -1201,10 +1320,109 @@ export const db = {
       return list.find((w) => w.id === id) || null;
     },
     getByCode: async (code: string): Promise<Workspace | null> => {
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from("workspaces")
+            .select("id, name, type, owner_id, invite_code, created_at, workspace_members(user_id, role)")
+            .ilike("invite_code", code.trim())
+            .single();
+          if (!error && data) {
+            return {
+              id: data.id,
+              name: data.name,
+              type: data.type,
+              owner_id: data.owner_id,
+              invite_code: data.invite_code,
+              created_at: data.created_at,
+              members: (data.workspace_members || []).map((m: any) => ({
+                user_id: m.user_id,
+                name: m.user_id === data.owner_id ? "Owner" : "Anggota",
+                role: m.role,
+              })),
+            };
+          }
+        } catch (err) {
+          console.error("[DB] Supabase getByCode error:", err);
+        }
+      }
       const list = await db.workspaces.list();
       return list.find((w) => w.invite_code?.toUpperCase() === code.trim().toUpperCase()) || null;
     },
+    joinByCodeRPC: async (code: string): Promise<{ success: boolean; workspace_id?: string; name?: string; role?: WorkspaceRole; message?: string }> => {
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase.rpc("join_workspace_by_code", { p_code: code.trim() });
+          if (!error && data && data.success) {
+            return data;
+          }
+        } catch (err) {
+          console.warn("[DB] join_workspace_by_code RPC fallback:", err);
+        }
+      }
+      return { success: false, message: "RPC unavailable or failed" };
+    },
+    addMember: async (workspaceId: string, userId: string, role: WorkspaceRole = "editor", name?: string): Promise<void> => {
+      if (isSupabaseConfigured && isValidUuid(workspaceId) && isValidUuid(userId)) {
+        try {
+          const { error } = await supabase.from("workspace_members").upsert(
+            { workspace_id: workspaceId, user_id: userId, role },
+            { onConflict: "workspace_id,user_id" }
+          );
+          if (error) console.error("[DB] Supabase addMember error:", error.message);
+        } catch (err) {
+          console.error("[DB] Supabase addMember error:", err);
+        }
+      }
+      let list = getLS<Workspace[]>("mf_workspaces") || [...DEFAULT_WORKSPACES];
+      const ws = list.find((w) => w.id === workspaceId);
+      if (ws) {
+        if (!ws.members) ws.members = [];
+        const existing = ws.members.find((m) => m.user_id === userId);
+        if (existing) {
+          existing.role = role;
+          if (name) existing.name = name;
+        } else {
+          ws.members.push({ user_id: userId, name: name || "Anggota", role });
+        }
+        setLS("mf_workspaces", list);
+      }
+    },
     save: async (workspace: Workspace): Promise<Workspace> => {
+      if (isSupabaseConfigured && workspace.owner_id !== "local-user" && isValidUuid(workspace.owner_id)) {
+        try {
+          const wsPayload = {
+            name: workspace.name,
+            type: workspace.type,
+            owner_id: workspace.owner_id,
+            invite_code: workspace.invite_code,
+          };
+          let realId = workspace.id;
+          if (isValidUuid(workspace.id)) {
+            const { data } = await supabase.from("workspaces").upsert({ id: workspace.id, ...wsPayload }).select().single();
+            if (data?.id) realId = data.id;
+          } else {
+            const { data } = await supabase.from("workspaces").insert([wsPayload]).select().single();
+            if (data?.id) {
+              realId = data.id;
+              workspace.id = data.id;
+            }
+          }
+          if (workspace.members && workspace.members.length > 0) {
+            for (const m of workspace.members) {
+              if (isValidUuid(m.user_id) && isValidUuid(realId)) {
+                await supabase.from("workspace_members").upsert({
+                  workspace_id: realId,
+                  user_id: m.user_id,
+                  role: m.role,
+                }, { onConflict: "workspace_id,user_id" });
+              }
+            }
+          }
+        } catch (err) {
+          console.error("[DB] Supabase save workspace error:", err);
+        }
+      }
       let list = getLS<Workspace[]>("mf_workspaces");
       const all = list && list.length > 0 ? [...list] : [...DEFAULT_WORKSPACES];
       const idx = all.findIndex((w) => w.id === workspace.id);
@@ -1222,6 +1440,207 @@ export const db = {
       setLS("mf_workspaces", filtered);
     },
   },
+
+  // -----------------------------------------------------------------------
+  // SPLIT BILLS (PATUNGAN CEPAT)
+  // -----------------------------------------------------------------------
+  splitBills: {
+    list: async (userId: string, workspaceId?: string): Promise<SplitBill[]> => {
+      if (isSupabaseConfigured && userId && userId !== "local-user" && isValidUuid(userId)) {
+        try {
+          let query = supabase.from("split_bills").select("*");
+          if (workspaceId && isValidUuid(workspaceId)) {
+            query = query.or(`workspace_id.eq.${workspaceId},and(user_id.eq.${userId},workspace_id.is.null)`);
+          } else {
+            query = query.eq("user_id", userId);
+          }
+          const { data, error } = await query.order("date", { ascending: false }).order("created_at", { ascending: false });
+          if (!error && data) {
+            return data.map((row: any): SplitBill => ({
+              id: row.id,
+              user_id: row.user_id,
+              workspace_id: row.workspace_id,
+              title: row.title,
+              date: row.date,
+              mode: row.mode || "equal",
+              subtotal: Number(row.subtotal) || 0,
+              discount: Number(row.discount) || 0,
+              taxPercent: Number(row.tax_percent) || 0,
+              taxAmount: Number(row.tax_amount) || 0,
+              servicePercent: Number(row.service_percent) || 0,
+              serviceAmount: Number(row.service_amount) || 0,
+              total: Number(row.total) || 0,
+              paymentInfo: row.payment_info || undefined,
+              targetWalletId: row.target_wallet_id || undefined,
+              members: Array.isArray(row.members) ? row.members : (typeof row.members === "string" ? JSON.parse(row.members) : []),
+              items: Array.isArray(row.items) ? row.items : (row.items && typeof row.items === "string" ? JSON.parse(row.items) : []),
+              created_at: row.created_at || new Date().toISOString(),
+              updated_at: row.updated_at,
+            }));
+          }
+          if (error) {
+            console.warn("[DB] Supabase split_bills list error:", error.message);
+          }
+        } catch (err) {
+          console.warn("[DB] Supabase split_bills exception:", err);
+        }
+      }
+      const list = getLS<SplitBill[]>("mf_split_bills");
+      return list
+        .filter((b) => b.user_id === userId || !b.user_id || (workspaceId && b.workspace_id === workspaceId))
+        .sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.created_at || "").localeCompare(a.created_at || ""));
+    },
+
+    create: async (userId: string, bill: Omit<SplitBill, "id" | "created_at">): Promise<SplitBill> => {
+      const generatedId = "sb-" + Math.random().toString(36).substring(2, 9);
+      const createdAt = new Date().toISOString();
+
+      if (isSupabaseConfigured && userId && userId !== "local-user" && isValidUuid(userId)) {
+        try {
+          const payload: any = {
+            user_id: userId,
+            workspace_id: isValidUuid(bill.workspace_id) ? bill.workspace_id : null,
+            title: bill.title,
+            date: bill.date,
+            mode: bill.mode,
+            subtotal: Number(bill.subtotal) || 0,
+            discount: Number(bill.discount) || 0,
+            tax_percent: Number(bill.taxPercent) || 0,
+            tax_amount: Number(bill.taxAmount) || 0,
+            service_percent: Number(bill.servicePercent) || 0,
+            service_amount: Number(bill.serviceAmount) || 0,
+            total: Number(bill.total) || 0,
+            payment_info: bill.paymentInfo || null,
+            target_wallet_id: isValidUuid(bill.targetWalletId) ? bill.targetWalletId : null,
+            members: bill.members || [],
+            items: bill.items || [],
+          };
+          const { data, error } = await supabase.from("split_bills").insert([payload]).select().single();
+          if (!error && data) {
+            dbLog("create", "split_bills", data);
+            const mapped: SplitBill = {
+              id: data.id,
+              user_id: data.user_id,
+              workspace_id: data.workspace_id,
+              title: data.title,
+              date: data.date,
+              mode: data.mode,
+              subtotal: Number(data.subtotal) || 0,
+              discount: Number(data.discount) || 0,
+              taxPercent: Number(data.tax_percent) || 0,
+              taxAmount: Number(data.tax_amount) || 0,
+              servicePercent: Number(data.service_percent) || 0,
+              serviceAmount: Number(data.service_amount) || 0,
+              total: Number(data.total) || 0,
+              paymentInfo: data.payment_info || undefined,
+              targetWalletId: data.target_wallet_id || undefined,
+              members: Array.isArray(data.members) ? data.members : [],
+              items: Array.isArray(data.items) ? data.items : [],
+              created_at: data.created_at || createdAt,
+              updated_at: data.updated_at,
+            };
+            const list = getLS<SplitBill[]>("mf_split_bills");
+            setLS("mf_split_bills", [mapped, ...list.filter((b) => b.id !== mapped.id)]);
+            return mapped;
+          }
+          if (error) {
+            console.error("[DB] Supabase split_bills insert error:", error.message);
+          }
+        } catch (err) {
+          console.error("[DB] Supabase split_bills insert exception:", err);
+        }
+      }
+
+      const list = getLS<SplitBill[]>("mf_split_bills");
+      const newBill: SplitBill = {
+        ...bill,
+        id: generatedId,
+        user_id: userId,
+        created_at: createdAt,
+      };
+      setLS("mf_split_bills", [newBill, ...list]);
+      return newBill;
+    },
+
+    update: async (userId: string, id: string, updates: Partial<SplitBill>): Promise<SplitBill> => {
+      if (isSupabaseConfigured && isValidUuid(id)) {
+        try {
+          const payload: any = {
+            updated_at: new Date().toISOString(),
+          };
+          if (updates.title !== undefined) payload.title = updates.title;
+          if (updates.date !== undefined) payload.date = updates.date;
+          if (updates.mode !== undefined) payload.mode = updates.mode;
+          if (updates.subtotal !== undefined) payload.subtotal = Number(updates.subtotal);
+          if (updates.discount !== undefined) payload.discount = Number(updates.discount);
+          if (updates.taxPercent !== undefined) payload.tax_percent = Number(updates.taxPercent);
+          if (updates.taxAmount !== undefined) payload.tax_amount = Number(updates.taxAmount);
+          if (updates.servicePercent !== undefined) payload.service_percent = Number(updates.servicePercent);
+          if (updates.serviceAmount !== undefined) payload.service_amount = Number(updates.serviceAmount);
+          if (updates.total !== undefined) payload.total = Number(updates.total);
+          if (updates.paymentInfo !== undefined) payload.payment_info = updates.paymentInfo;
+          if (updates.targetWalletId !== undefined) {
+            payload.target_wallet_id = isValidUuid(updates.targetWalletId) ? updates.targetWalletId : null;
+          }
+          if (updates.members !== undefined) payload.members = updates.members;
+          if (updates.items !== undefined) payload.items = updates.items;
+
+          const { data, error } = await supabase.from("split_bills").update(payload).eq("id", id).select().single();
+          if (!error && data) {
+            dbLog("update", "split_bills", data);
+            const mapped: SplitBill = {
+              id: data.id,
+              user_id: data.user_id,
+              workspace_id: data.workspace_id,
+              title: data.title,
+              date: data.date,
+              mode: data.mode,
+              subtotal: Number(data.subtotal) || 0,
+              discount: Number(data.discount) || 0,
+              taxPercent: Number(data.tax_percent) || 0,
+              taxAmount: Number(data.tax_amount) || 0,
+              servicePercent: Number(data.service_percent) || 0,
+              serviceAmount: Number(data.service_amount) || 0,
+              total: Number(data.total) || 0,
+              paymentInfo: data.payment_info || undefined,
+              targetWalletId: data.target_wallet_id || undefined,
+              members: Array.isArray(data.members) ? data.members : [],
+              items: Array.isArray(data.items) ? data.items : [],
+              created_at: data.created_at,
+              updated_at: data.updated_at,
+            };
+            const list = getLS<SplitBill[]>("mf_split_bills");
+            setLS("mf_split_bills", list.map((b) => (b.id === id ? mapped : b)));
+            return mapped;
+          }
+        } catch (err) {
+          console.error("[DB] Supabase split_bills update exception:", err);
+        }
+      }
+
+      const list = getLS<SplitBill[]>("mf_split_bills");
+      const idx = list.findIndex((b) => b.id === id);
+      if (idx === -1) throw new Error("Catatan patungan tidak ditemukan");
+      const updated: SplitBill = { ...list[idx], ...updates, updated_at: new Date().toISOString() };
+      list[idx] = updated;
+      setLS("mf_split_bills", list);
+      return updated;
+    },
+
+    delete: async (userId: string, id: string): Promise<void> => {
+      if (isSupabaseConfigured && isValidUuid(id)) {
+        try {
+          const { error } = await supabase.from("split_bills").delete().eq("id", id);
+          if (error) console.error("[DB] Supabase split_bills delete error:", error.message);
+        } catch (err) {
+          console.error("[DB] Supabase split_bills delete exception:", err);
+        }
+      }
+      const list = getLS<SplitBill[]>("mf_split_bills");
+      setLS("mf_split_bills", list.filter((b) => b.id !== id));
+    },
+  },
+
 };
 
 // =========================================================================

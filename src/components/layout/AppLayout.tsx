@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutDashboard, FileText, Plus, BarChart3, Settings, Bell, LogOut, Menu, X, Wallet, UserRound, CheckCircle2, ChevronDown, Check } from "lucide-react";
+import { LayoutDashboard, FileText, Plus, BarChart3, Settings, Bell, LogOut, Menu, X, Wallet, UserRound, CheckCircle2, ChevronDown, Users } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 import { useToastStore } from "../../store/toastStore";
 import { useFinanceStore } from "../../store/financeStore";
@@ -30,7 +30,7 @@ interface AppLayoutProps {
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout, switchUser, settings, workspaces, activeWorkspaceId, activeRole, switchWorkspace } = useAuthStore();
+  const { user, logout, settings, workspaces, activeWorkspaceId, activeRole, switchWorkspace } = useAuthStore();
   const { notifications, readAllNotifications, readNotification } = useFinanceStore();
   const { showToast } = useToastStore();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -82,8 +82,17 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const navItems = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
     { name: "Transaksi", path: "/transactions", icon: FileText },
+    { name: "Split Bill", path: "/split-bill", icon: Users },
     { name: "Analitik", path: "/reports", icon: BarChart3 },
     { name: "Dompet", path: "/settings?tab=wallets", icon: Wallet },
+    { name: "Pengaturan", path: "/settings", icon: Settings },
+  ];
+
+  const mobileNavItems = [
+    { name: "Beranda", path: "/", icon: LayoutDashboard },
+    { name: "Transaksi", path: "/transactions", icon: FileText },
+    { name: "Catat", path: "", icon: Plus, isAction: true },
+    { name: "Split Bill", path: "/split-bill", icon: Users },
     { name: "Pengaturan", path: "/settings", icon: Settings },
   ];
 
@@ -95,6 +104,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const isNavActive = (path: string) => {
     if (path === "/settings?tab=wallets") return currentPath === "/settings" && location.search.includes("tab=wallets");
     if (path === "/settings") return currentPath === "/settings" && !location.search.includes("tab=wallets");
+    if (path === "/" && (currentPath === "/" || currentPath === "/dashboard")) return true;
     return currentPath === path;
   };
 
@@ -260,16 +270,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                   <UserRound className="h-3 w-3" />
                 </div>
                 <span className="truncate max-w-[85px] sm:max-w-none text-[#1e1e1e]">{activeWorkspace?.name || currentAccount.name}</span>
-                <span
-                  className={cn(
-                    "text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 border border-[#1e1e1e]",
-                    activeRole === "owner" && "bg-[#1e1e1e] text-white",
-                    activeRole === "editor" && "bg-[#ff5722] text-white",
-                    activeRole === "viewer" && "bg-[#f4f4f4] text-[#1e1e1e]"
-                  )}
-                >
-                  {activeRole.toUpperCase()}
-                </span>
+                <span className={cn("text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 border border-[#1e1e1e]", activeRole === "owner" && "bg-[#1e1e1e] text-white", activeRole === "editor" && "bg-[#ff5722] text-white", activeRole === "viewer" && "bg-[#f4f4f4] text-[#1e1e1e]")}>{activeRole.toUpperCase()}</span>
                 <ChevronDown className={cn("h-3.5 w-3.5 text-[#555555] transition-transform duration-150", isAccountOpen && "rotate-180")} />
               </button>
 
@@ -286,7 +287,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                           </div>
                           {workspaces.map((ws) => {
                             const isSelected = ws.id === activeWorkspaceId;
-                            const myRole = ws.owner_id === user?.id ? "owner" : (ws.members?.find((m) => m.user_id === user?.id)?.role || "viewer");
+                            const myRole = ws.owner_id === user?.id ? "owner" : ws.members?.find((m) => m.user_id === user?.id)?.role || "viewer";
                             return (
                               <button
                                 key={ws.id}
@@ -305,28 +306,20 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                               </button>
                             );
                           })}
+                          <div className="p-2 border-t border-[#1e1e1e] bg-[#ffffff]">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsAccountOpen(false);
+                                navigate("/settings");
+                              }}
+                              className="w-full py-1.5 px-2 text-[10px] font-black uppercase tracking-wider text-[#ff5722] hover:bg-[#f4f4f4] flex items-center justify-center gap-1.5 border border-dashed border-[#1e1e1e] transition-colors cursor-pointer"
+                            >
+                              + Kelola / Gabung Ruang
+                            </button>
+                          </div>
                         </>
                       )}
-                      <div className="px-3 py-1.5 border-b border-[#1e1e1e] bg-[#f4f4f4]">
-                        <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-[#555555]">Simulasi Akun</p>
-                      </div>
-                      {accountOptions.map((opt) => {
-                        const isSelected = opt.id === (user?.id || "local-user");
-                        return (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            onClick={async () => {
-                              await switchUser(opt.id);
-                              setIsAccountOpen(false);
-                            }}
-                            className={cn("w-full flex items-center justify-between px-3 py-2 text-xs font-semibold transition-colors border-b border-[#e8e8e8] last:border-b-0", isSelected ? "bg-[#f4f4f4] text-[#1e1e1e] font-bold" : "text-[#555555] hover:bg-[#ffffff]")}
-                          >
-                            <span className="truncate">{opt.name}</span>
-                            {isSelected && <Check className="h-3 w-3 text-[#ff5722]" />}
-                          </button>
-                        );
-                      })}
                     </motion.div>
                   </>
                 )}
@@ -411,33 +404,53 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       {/* =================================================================
           MOBILE BOTTOM NAVIGATION - Swiss: bordered, flat, square
           ================================================================= */}
-      <nav aria-label="Navigasi utama" className="mf-bottom-nav fixed bottom-0 left-0 right-0 h-16 grid grid-cols-5 items-stretch z-40 md:hidden bg-[#f4f4f4]">
+      <nav aria-label="Navigasi utama" className="mf-bottom-nav fixed bottom-0 left-0 right-0 h-16 grid grid-cols-5 items-stretch z-40 md:hidden bg-[#f4f4f4] border-t border-[#1e1e1e]">
         {activeRole !== "viewer" && (
           <div className="absolute left-1/2 -top-5 -translate-x-1/2 z-50 pointer-events-auto">
-            <motion.button whileTap={{ scale: 0.92 }} type="button" onClick={() => openQuickAdd("expense")} aria-label="Catat Transaksi" className="h-12 w-12 shrink-0 aspect-square bg-[#ff5722] text-white flex items-center justify-center border-2 border-[#1e1e1e] hover:bg-[#e64a19] transition-colors cursor-pointer">
+            <motion.button
+              initial={{ y: 80, opacity: 0, scale: 0.5 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{
+                type: "spring",
+                stiffness: 260,
+                damping: 20,
+                delay: 0.1, // Kasih jeda dikit biar munculnya dramatis pas buka web
+              }}
+              type="button"
+              onClick={() => openQuickAdd("expense")}
+              aria-label="Catat Transaksi"
+              className="h-12 w-12 shrink-0 rounded-full bg-[#ff5722] text-white flex items-center justify-center border-2 border-[#1e1e1e] hover:bg-[#e64a19] transition-colors cursor-pointer"
+            >
               <Plus className="h-6 w-6 stroke-[2.5]" />
             </motion.button>
           </div>
         )}
 
-        {navItems.map((item, idx) => {
+        {mobileNavItems.map((item) => {
           const Icon = item.icon;
-          const isActive = isNavActive(item.path);
-          const isCenter = idx === 2; // Analitik slot (hidden by FAB)
+          const isActive = item.path ? isNavActive(item.path) : false;
+          const isCenter = item.isAction;
 
           return (
             <button
               key={item.name}
-              onClick={() => handleNavClick(item.path)}
+              onClick={() => {
+                if (item.isAction) {
+                  openQuickAdd("expense");
+                } else {
+                  handleNavClick(item.path);
+                }
+              }}
               aria-current={isActive ? "page" : undefined}
               className={cn(
                 "mf-bottom-link flex flex-col items-center justify-center gap-1 text-[#555555] transition-colors select-none cursor-pointer",
                 isCenter && "pt-5 opacity-0 pointer-events-none", // Hidden under FAB
-                isActive && "mf-bottom-active",
+                isActive && "mf-bottom-active font-bold text-[#1e1e1e]",
               )}
             >
               <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-              <span className="text-[10px] tracking-tight font-semibold">{item.name}</span>
+              <span className="text-[10px] tracking-tight">{item.name}</span>
             </button>
           );
         })}

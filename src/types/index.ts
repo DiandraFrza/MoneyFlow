@@ -203,3 +203,40 @@ export interface FinancialHealthLog {
   log_date: string;
   created_at?: string;
 }
+
+export interface SplitBillItem {
+  id: string;
+  name: string;
+  price: number;
+  assignedToMemberIds: string[]; // ID anggota yang patungan untuk menu ini
+}
+
+export interface SplitBillMember {
+  id: string;
+  name: string;
+  isOwner?: boolean;
+  isPaid?: boolean;
+  allocatedAmount: number; // Nominal akhir per orang (termasuk pajak/service)
+}
+
+export interface SplitBill {
+  id: string;
+  user_id?: string;
+  workspace_id?: string;
+  title: string;
+  date: string;
+  mode: "equal" | "itemized";
+  subtotal: number;
+  discount: number;
+  taxPercent: number;
+  taxAmount: number;
+  servicePercent: number;
+  serviceAmount: number;
+  total: number;
+  paymentInfo?: string;
+  targetWalletId?: string;
+  members: SplitBillMember[];
+  items?: SplitBillItem[];
+  created_at: string;
+  updated_at?: string;
+}

@@ -15,14 +15,14 @@ export const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
       <div
         ref={ref}
         className={cn(
-          'relative h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800',
+          'relative h-2.5 w-full overflow-hidden border border-[#1e1e1e] bg-[#f4f4f4]',
           className
         )}
         {...props}
       >
         <div
           className={cn(
-            'h-full w-full flex-1 transition-all duration-300 ease-in-out rounded-full',
+            'h-full w-full flex-1 transition-all duration-300 ease-in-out',
             colorVariant === 'default' && 'bg-primary',
             colorVariant === 'success' && 'bg-success',
             colorVariant === 'warning' && 'bg-warning',

@@ -448,12 +448,12 @@ export const db = {
       }
       if (isSupabaseUser(userId)) {
         console.log("[DB] GET profile, user_id:", userId);
-        const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
+        const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
         dbLog("SELECT", "profiles", { userId }, error);
         if (!error && data) return data;
 
-        // Auto-create profile if missing (PGRST116: no rows returned)
-        if (error && error.code === "PGRST116") {
+        // Auto-create profile if missing
+        if (!data) {
           const newProfile: UserProfile = {
             id: userId,
             name: "User MoneyFlow",
@@ -462,9 +462,13 @@ export const db = {
             financial_target: 0,
           };
           console.log("[DB] INSERT profile:", newProfile);
-          const { data: created, error: createErr } = await supabase.from("profiles").insert([newProfile]).select().single();
-          dbLog("INSERT", "profiles", newProfile, createErr);
-          if (created) return created;
+          try {
+            const { data: created, error: createErr } = await supabase.from("profiles").insert([newProfile]).select().maybeSingle();
+            dbLog("INSERT", "profiles", newProfile, createErr);
+            if (created) return created;
+          } catch (e) {
+            console.warn("[DB] Supabase profile auto-insert error:", e);
+          }
           return newProfile;
         }
       }
@@ -486,12 +490,53 @@ export const db = {
       const profile = localStorage.getItem("mf_profile") ? JSON.parse(localStorage.getItem("mf_profile")!) : DEFAULT_PROFILE;
       return profile;
     },
+    getByAccessKey: async (rawKey: string): Promise<UserProfile | null> => {
+      const cleanKey = rawKey.replace(/[^0-9]/g, "");
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("access_key", cleanKey)
+            .maybeSingle();
+          if (!error && data) return data;
+        } catch (e) {
+          console.warn("[DB] Supabase profile getByAccessKey error:", e);
+        }
+      }
+      const profilesMap = getLS<Record<string, UserProfile>>("mf_profiles_map");
+      const found = Object.values(profilesMap).find((p) => p.access_key === cleanKey);
+      return found || null;
+    },
     update: async (userId: string, updates: Partial<UserProfile>): Promise<UserProfile> => {
       if (isSupabaseUser(userId)) {
         try {
           console.log("[DB] UPDATE profile, user_id:", userId, "updates:", updates);
-          const { data, error } = await supabase.from("profiles").upsert({ id: userId, ...updates }, { onConflict: "id" }).select().maybeSingle();
+          const { data, error } = await supabase
+            .from("profiles")
+            .upsert({ id: userId, ...updates, updated_at: new Date().toISOString() }, { onConflict: "id" })
+            .select()
+            .maybeSingle();
           dbLog("UPDATE", "profiles", updates, error);
+
+          // Jika nama berubah, update juga di access_keys jika user ini punya key
+          if (updates.name) {
+            try {
+              await supabase
+                .from("access_keys")
+                .update({ user_name: updates.name.trim() })
+                .eq("user_id", userId);
+              if (updates.access_key) {
+                await supabase
+                  .from("access_keys")
+                  .update({ user_name: updates.name.trim() })
+                  .eq("key", updates.access_key);
+              }
+            } catch (e) {
+              console.warn("[DB] Supabase sync user_name to access_keys error:", e);
+            }
+          }
+
           if (!error && data) return data;
         } catch (e) {
           console.warn("[DB] Supabase profile upsert error:", e);
@@ -1823,24 +1868,177 @@ export const db = {
       const local = getLS<AccessKey[]>("mf_access_keys");
       return local.find((k) => k.key === cleanKey) || null;
     },
+    getByUserId: async (userId: string): Promise<AccessKey | null> => {
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from("access_keys")
+            .select("*")
+            .eq("user_id", userId)
+            .maybeSingle();
+          if (!error && data) {
+            return {
+              id: data.id || data.key,
+              key: data.key,
+              user_id: data.user_id,
+              user_name: data.user_name || "",
+              phone_number: data.phone_number || "",
+              is_active: data.is_active ?? true,
+              activated_at: data.activated_at || null,
+              created_at: data.created_at || new Date().toISOString(),
+            };
+          }
+        } catch (e) {
+          console.warn("[DB] Supabase access_keys getByUserId error:", e);
+        }
+      }
+      const local = getLS<AccessKey[]>("mf_access_keys");
+      return local.find((k) => k.user_id === userId) || null;
+    },
+    toggleActive: async (rawKey: string, isActive: boolean): Promise<boolean> => {
+      const cleanKey = rawKey.replace(/[^0-9]/g, "");
+      if (isSupabaseConfigured) {
+        try {
+          const { error } = await supabase
+            .from("access_keys")
+            .update({ is_active: isActive })
+            .eq("key", cleanKey);
+          if (error) {
+            console.warn("[DB] toggleActive Supabase error:", error.message);
+          }
+        } catch (e) {
+          console.warn("[DB] toggleActive error:", e);
+        }
+      }
+      const list = getLS<AccessKey[]>("mf_access_keys");
+      const idx = list.findIndex((k) => k.key === cleanKey);
+      if (idx !== -1) {
+        list[idx].is_active = isActive;
+        setLS("mf_access_keys", list);
+      }
+      return true;
+    },
+    assignToUser: async (rawKey: string, userId: string, userName: string, phone?: string): Promise<boolean> => {
+      const cleanKey = rawKey.replace(/[^0-9]/g, "");
+      const now = new Date().toISOString();
+      if (isSupabaseConfigured) {
+        try {
+          // 1. Update access_keys
+          await supabase
+            .from("access_keys")
+            .upsert(
+              [
+                {
+                  key: cleanKey,
+                  user_id: userId,
+                  user_name: userName.trim(),
+                  phone_number: phone?.trim() || "",
+                  is_active: true,
+                  activated_at: now,
+                },
+              ],
+              { onConflict: "key" },
+            );
+
+          // 2. Update profiles table
+          await supabase
+            .from("profiles")
+            .update({
+              access_key: cleanKey,
+              name: userName.trim(),
+              phone_number: phone?.trim() || "",
+              updated_at: now,
+            })
+            .eq("id", userId);
+        } catch (e) {
+          console.warn("[DB] assignToUser error:", e);
+        }
+      }
+
+      // Update LocalStorage cache
+      const list = getLS<AccessKey[]>("mf_access_keys");
+      const idx = list.findIndex((k) => k.key === cleanKey);
+      const updatedKey: AccessKey = {
+        id: cleanKey,
+        key: cleanKey,
+        user_id: userId,
+        user_name: userName.trim(),
+        phone_number: phone?.trim() || "",
+        is_active: true,
+        activated_at: now,
+        created_at: idx !== -1 ? list[idx].created_at : now,
+      };
+      if (idx !== -1) list[idx] = updatedKey;
+      else list.unshift(updatedKey);
+      setLS("mf_access_keys", list);
+
+      const profilesMap = getLS<Record<string, UserProfile>>("mf_profiles_map");
+      if (profilesMap[userId]) {
+        profilesMap[userId].access_key = cleanKey;
+        profilesMap[userId].name = userName.trim();
+        setLS("mf_profiles_map", profilesMap);
+      }
+
+      return true;
+    },
+    listExistingProfiles: async (): Promise<UserProfile[]> => {
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from("profiles")
+            .select("*")
+            .order("created_at", { ascending: false });
+          if (!error && data && data.length > 0) {
+            return data;
+          }
+        } catch (e) {
+          console.warn("[DB] listExistingProfiles error:", e);
+        }
+      }
+      const profilesMap = getLS<Record<string, UserProfile>>("mf_profiles_map");
+      return Object.values(profilesMap);
+    },
     create: async (data: { key: string; user_name?: string; phone_number?: string }): Promise<AccessKey> => {
       const cleanKey = data.key.replace(/[^0-9]/g, "");
+      const newUserId = generateUuid();
+      const userName = data.user_name?.trim() || "User MoneyFlow";
+      const phoneNumber = data.phone_number?.trim() || "";
+      const now = new Date().toISOString();
+
       const newKey: AccessKey = {
         id: cleanKey,
         key: cleanKey,
-        user_name: data.user_name?.trim() || "",
-        phone_number: data.phone_number?.trim() || "",
+        user_id: newUserId,
+        user_name: userName,
+        phone_number: phoneNumber,
         is_active: true,
-        created_at: new Date().toISOString(),
+        activated_at: now,
+        created_at: now,
       };
+
       if (isSupabaseConfigured) {
         try {
-          // Hanya kirim field dasar yang pasti ada di skema
+          // 1. Buat profil pengguna langsung di public.profiles
+          await supabase.from("profiles").upsert([
+            {
+              id: newUserId,
+              name: userName,
+              phone_number: phoneNumber,
+              access_key: cleanKey,
+              currency: "IDR",
+              monthly_salary: 0,
+              financial_target: 0,
+            },
+          ]);
+
+          // 2. Simpan di access_keys dengan user_id dan status aktif langsung
           const insertPayload: any = {
             key: cleanKey,
-            user_name: data.user_name?.trim() || "",
-            phone_number: data.phone_number?.trim() || "",
+            user_id: newUserId,
+            user_name: userName,
+            phone_number: phoneNumber,
             is_active: true,
+            activated_at: now,
           };
           const { data: created, error } = await supabase.from("access_keys").insert([insertPayload]).select().maybeSingle();
           if (!error && created) {

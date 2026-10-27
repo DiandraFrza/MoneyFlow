@@ -19,12 +19,14 @@ export const Settings: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const { user, updateProfile, workspaces, activeWorkspaceId, activeRole, createWorkspace, switchWorkspace, joinWorkspaceByCode, updateMemberRole } = useAuthStore();
+  const { user, updateProfile, workspaces, activeWorkspaceId, activeRole, createWorkspace, switchWorkspace, joinWorkspaceByCode, updateMemberRole, updateWorkspaceName } = useAuthStore();
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
   const [isCodeCopied, setIsCodeCopied] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [newWsName, setNewWsName] = useState("");
   const [newWsType, setNewWsType] = useState<"personal" | "couple" | "family">("couple");
+  const [isEditingWsName, setIsEditingWsName] = useState(false);
+  const [editWsName, setEditWsName] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -76,6 +78,18 @@ export const Settings: React.FC = () => {
       }
     } catch (err: any) {
       showToast(err?.message || "Gagal membuat ruang baru.", "error");
+    }
+  };
+
+  const handleUpdateWorkspaceName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeWorkspace || !editWsName.trim()) return;
+    try {
+      await updateWorkspaceName(activeWorkspace.id, editWsName.trim());
+      showToast("Nama ruang keuangan berhasil diperbarui!", "success");
+      setIsEditingWsName(false);
+    } catch (err: any) {
+      showToast(err?.message || "Gagal memperbarui nama ruang keuangan.", "error");
     }
   };
   const { wallets, categories, subcategories, budgets, debts, recurring, addWallet, setBudget, addDebt, updateDebt, addRecurring, addCategory, addSubcategory, addTransaction } = useFinanceStore();
@@ -471,12 +485,51 @@ export const Settings: React.FC = () => {
               {/* Active Workspace Info & Invite Code */}
               {activeWorkspace && (
                 <div className="p-4 border border-[#1e1e1e] bg-[#fafafa] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div>
+                  <div className="flex-1 w-full sm:w-auto">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-[#555555] mb-0.5">Ruang Saat Ini</p>
-                    <h4 className="text-base font-bold text-[#1e1e1e] flex items-center gap-2">
-                      {activeWorkspace.name}
-                      <span className="text-[9px] font-semibold uppercase px-1.5 py-0.2 border border-[#1e1e1e] bg-[#ffffff] text-[#555555]">{activeWorkspace.type}</span>
-                    </h4>
+                    {isEditingWsName ? (
+                      <form onSubmit={handleUpdateWorkspaceName} className="flex items-center gap-2 mt-1">
+                        <Input
+                          value={editWsName}
+                          onChange={(e) => setEditWsName(e.target.value)}
+                          className="h-8 text-xs font-bold w-full sm:w-64"
+                          placeholder="Nama Ruang Keuangan"
+                          autoFocus
+                          required
+                        />
+                        <Button type="submit" size="sm" className="h-8 text-xs px-2.5">
+                          Simpan
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsEditingWsName(false)}
+                          className="h-8 text-xs px-2.5"
+                        >
+                          Batal
+                        </Button>
+                      </form>
+                    ) : (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-base font-bold text-[#1e1e1e] flex items-center gap-2">
+                          {activeWorkspace.name}
+                          <span className="text-[9px] font-semibold uppercase px-1.5 py-0.2 border border-[#1e1e1e] bg-[#ffffff] text-[#555555]">{activeWorkspace.type}</span>
+                        </h4>
+                        {activeRole === "owner" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditWsName(activeWorkspace.name);
+                              setIsEditingWsName(true);
+                            }}
+                            className="text-[10px] font-bold text-[#ff5722] hover:underline uppercase tracking-wider cursor-pointer"
+                          >
+                            [Ubah Nama]
+                          </button>
+                        )}
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 mt-2">
                       <span className="text-xs text-[#555555] font-medium">Kode Undangan:</span>
                       <code className="px-2 py-0.5 bg-[#ffffff] border border-[#1e1e1e] font-mono font-bold text-xs text-[#ff5722]">{activeWorkspace.invite_code}</code>

@@ -43,6 +43,7 @@ interface AuthState {
   switchWorkspace: (workspaceId: string) => Promise<void>;
   joinWorkspaceByCode: (code: string) => Promise<boolean>;
   updateMemberRole: (userId: string, role: WorkspaceRole) => Promise<void>;
+  updateWorkspaceName: (workspaceId: string, newName: string) => Promise<void>;
 }
 
 const resolveUserWorkspaces = async (user: UserProfile) => {
@@ -59,6 +60,16 @@ const resolveUserWorkspaces = async (user: UserProfile) => {
     };
     await db.workspaces.save(defaultWs);
     userWorkspaces = [defaultWs];
+  } else {
+    // Sinkronkan nama personal workspace jika nama pengguna telah diperbarui
+    const personalWs = userWorkspaces.find((w) => w.type === "personal" && w.owner_id === user.id);
+    if (personalWs && user.name && user.name.trim()) {
+      const expectedName = `${user.name.trim()} Pribadi`;
+      if (personalWs.name !== expectedName && (personalWs.name.endsWith(" Pribadi") || personalWs.name.toLowerCase().includes("pribadi"))) {
+        personalWs.name = expectedName;
+        await db.workspaces.save(personalWs);
+      }
+    }
   }
 
   const savedWsId = typeof localStorage !== "undefined" ? localStorage.getItem("mf_active_workspace_id") : null;
@@ -165,24 +176,66 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           // Sesi Pengguna Berlisensi 11-Digit
           if (session.key && session.user_id) {
             console.log("[Auth] Memulihkan sesi Lisensi Aktif:", session.key, "user_id:", session.user_id);
-            const profile = await db.profile.get(session.user_id);
-            if (session.name && !profile.name) profile.name = session.name;
-            profile.access_key = session.key;
-            if (session.phone_number) profile.phone_number = session.phone_number;
 
-            const settings = await db.settings.get(session.user_id);
-            const wsData = await resolveUserWorkspaces(profile);
-            set({
-              user: profile,
-              settings: settings,
-              ...wsData,
-              isLocal: !isSupabaseConfigured,
-              isDemo: false,
-              isAdmin: false,
-              accessKey: session.key,
-              loading: false,
-            });
-            return;
+            // Cek status keaktifan lisensi di database
+            try {
+              const keyRecord = await db.accessKeys.getByKey(session.key);
+              if (keyRecord && keyRecord.is_active === false) {
+                console.warn("[Auth] Lisensi telah dinonaktifkan oleh admin!");
+                if (typeof localStorage !== "undefined") {
+                  localStorage.removeItem("mf_active_session");
+                }
+                set({
+                  user: null,
+                  settings: null,
+                  workspaces: [],
+                  activeWorkspaceId: null,
+                  loading: false,
+                  error: "Akun / Kode akses Anda telah dinonaktifkan oleh administrator.",
+                });
+                return;
+              }
+            } catch (kErr) {
+              console.warn("[Auth] Gagal cek status keaktifan key:", kErr);
+            }
+
+            try {
+              const profile = await db.profile.get(session.user_id);
+              if (session.name && !profile.name) profile.name = session.name;
+              profile.access_key = session.key;
+              if (session.phone_number) profile.phone_number = session.phone_number;
+
+              const settings = await db.settings.get(session.user_id);
+              const wsData = await resolveUserWorkspaces(profile);
+              set({
+                user: profile,
+                settings: settings,
+                ...wsData,
+                isLocal: !isSupabaseConfigured,
+                isDemo: false,
+                isAdmin: false,
+                accessKey: session.key,
+                loading: false,
+              });
+              return;
+            } catch (err: any) {
+              console.warn("[Auth] Gagal sinkronisasi data online, menggunakan sesi tersimpan:", err);
+              // Fallback jika database offline atau RLS menolak sementara
+              const fallbackProfile: UserProfile = {
+                id: session.user_id,
+                name: session.name || "User",
+                currency: "Rp",
+                monthly_salary: 0,
+                financial_target: 0,
+                access_key: session.key,
+                phone_number: session.phone_number,
+              };
+              set({
+                user: fallbackProfile,
+                loading: false,
+              });
+              return;
+            }
           }
         } catch (e) {
           console.error("[Auth] Gagal membaca mf_active_session:", e);
@@ -260,32 +313,63 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // 2. Cek lisensi di database access_keys
     try {
-      const keyRecord = await db.accessKeys.getByKey(cleanKey);
+      let keyRecord = await db.accessKeys.getByKey(cleanKey);
 
-      if (keyRecord && keyRecord.is_active === false) {
-        const err = "Kode akses ini telah dinonaktifkan oleh administrator.";
+      // Fallback: Jika belum ada di access_keys, cek apakah sudah tertaut di profiles.access_key
+      if (!keyRecord) {
+        const profileWithKey = await db.profile.getByAccessKey(cleanKey);
+        if (profileWithKey) {
+          keyRecord = await db.accessKeys.activate(
+            cleanKey,
+            profileWithKey.name || "User",
+            profileWithKey.phone_number || "",
+            profileWithKey.id,
+          );
+        }
+      }
+
+      // Jika kode sama sekali tidak ditemukan di database
+      if (!keyRecord) {
+        const err = "Kode akses tidak terdaftar. Pastikan 11 digit kode yang Anda masukkan benar.";
         set({ loading: false, error: err });
         return { success: false, error: err };
       }
 
-      // Jika lisensi belum diaktifkan (belum ada nama / tanggal aktif)
-      if (!keyRecord || !keyRecord.activated_at || !keyRecord.user_name) {
-        set({ loading: false });
-        return {
-          success: false,
-          needsBinding: true,
-          key: cleanKey,
-          name: keyRecord?.user_name || "",
-          phone: keyRecord?.phone_number || "",
-        };
+      // Jika akun dinonaktifkan oleh admin
+      if (keyRecord.is_active === false) {
+        const err = "Akun / Kode akses ini telah dinonaktifkan oleh administrator. Silakan hubungi admin.";
+        set({ loading: false, error: err });
+        return { success: false, error: err };
       }
 
-      // Jika lisensi sudah aktif sebelumnya -> langsung login
-      const userId = keyRecord.user_id && isValidUuid(keyRecord.user_id) ? keyRecord.user_id : generateUuid();
+      // Pastikan user_id tersedia (jika lisensi baru dibuatkan admin dan belum ada user_id, langsung aktivasi otomatis)
+      let userId = keyRecord.user_id;
+      if (!userId || !isValidUuid(userId)) {
+        userId = generateUuid();
+        const userName = keyRecord.user_name?.trim() || "User MoneyFlow";
+        const phoneNumber = keyRecord.phone_number?.trim() || "";
+        const now = new Date().toISOString();
+
+        // 1. Buat profil di database
+        await db.profile.update(userId, {
+          id: userId,
+          name: userName,
+          phone_number: phoneNumber,
+          access_key: cleanKey,
+          currency: "IDR",
+        });
+
+        // 2. Tautkan user_id ke tabel access_keys
+        await db.accessKeys.activate(cleanKey, userName, phoneNumber, userId);
+        keyRecord.user_id = userId;
+        keyRecord.user_name = userName;
+        keyRecord.activated_at = now;
+      }
+
       const profile = await db.profile.get(userId);
-      profile.name = keyRecord.user_name || profile.name;
+      profile.name = keyRecord.user_name || profile.name || "User";
       profile.access_key = cleanKey;
-      profile.phone_number = keyRecord.phone_number;
+      if (keyRecord.phone_number) profile.phone_number = keyRecord.phone_number;
 
       const settings = await db.settings.get(userId);
       const wsData = await resolveUserWorkspaces(profile);
@@ -295,7 +379,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         name: profile.name,
         phone_number: keyRecord.phone_number,
         is_admin: false,
-        activated_at: keyRecord.activated_at,
+        activated_at: keyRecord.activated_at || new Date().toISOString(),
       };
 
       if (typeof localStorage !== "undefined") {
@@ -315,6 +399,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       return { success: true };
     } catch (err: any) {
+      console.error("[Auth] loginWithKey error:", err);
       const msg = err.message || "Gagal memverifikasi kode akses.";
       set({ loading: false, error: msg });
       return { success: false, error: msg };
@@ -470,7 +555,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const currentUser = get().user;
     if (!currentUser) return;
     try {
+      console.log("[Auth] Updating profile for user:", currentUser.id, updates);
       const updated = await db.profile.update(currentUser.id, updates);
+
+      // Sinkronkan nama ke localStorage session agar saat refresh tidak kembali ke nama lama
+      if (updates.name && typeof localStorage !== "undefined") {
+        const rawSession = localStorage.getItem("mf_active_session");
+        if (rawSession) {
+          try {
+            const session = JSON.parse(rawSession);
+            session.name = updates.name.trim();
+            localStorage.setItem("mf_active_session", JSON.stringify(session));
+          } catch (e) {}
+        }
+      }
+
+      // Jika nama pengguna diubah, sinkronkan juga nama personal workspace
+      if (updates.name && updates.name.trim()) {
+        const newName = updates.name.trim();
+        const currentWorkspaces = get().workspaces;
+        const personalWs = currentWorkspaces.find((w) => w.type === "personal" && w.owner_id === currentUser.id);
+        if (personalWs) {
+          const updatedWs: Workspace = {
+            ...personalWs,
+            name: `${newName} Pribadi`,
+            members: personalWs.members?.map((m) => (m.user_id === currentUser.id ? { ...m, name: newName } : m)) || [],
+          };
+          await db.workspaces.save(updatedWs);
+          set({
+            workspaces: currentWorkspaces.map((w) => (w.id === personalWs.id ? updatedWs : w)),
+          });
+        }
+      }
+
       set({ user: updated });
     } catch (err: any) {
       console.error("[Auth] Update profile error:", err.message);
@@ -641,5 +758,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       workspaces: updatedWorkspaces,
       ...(targetUserId === currentUser.id ? { activeRole: role } : {}),
     });
+  },
+
+  updateWorkspaceName: async (workspaceId: string, newName: string) => {
+    const { user: currentUser, workspaces, activeRole } = get();
+    if (!currentUser) return;
+    if (activeRole !== "owner") {
+      throw new Error("Hanya pemilik (owner) yang dapat mengubah nama ruang keuangan.");
+    }
+    const cleanName = newName.trim();
+    if (!cleanName) {
+      throw new Error("Nama ruang keuangan tidak boleh kosong.");
+    }
+    const ws = workspaces.find((w) => w.id === workspaceId);
+    if (!ws) return;
+
+    const updatedWs: Workspace = {
+      ...ws,
+      name: cleanName,
+    };
+    await db.workspaces.save(updatedWs);
+
+    const updatedWorkspaces = workspaces.map((w) => (w.id === workspaceId ? updatedWs : w));
+    set({ workspaces: updatedWorkspaces });
   },
 }));

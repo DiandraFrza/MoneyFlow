@@ -213,7 +213,7 @@ export const Dashboard: React.FC = () => {
               /
             </kbd>
           </div>
-          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} type="button" className="mf-avatar" onClick={() => navigate("/settings")} aria-label={`Buka pengaturan profil ${user?.name || ""}`}>
+          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} type="button" className="mf-avatar bg-[#ff5722] text-[#1e1e1e] hover:bg-[#fafafa]" onClick={() => navigate("/settings")} aria-label={`Buka pengaturan profil ${user?.name || ""}`}>
             {user?.photo_url ? <img src={user.photo_url} alt="" /> : firstName.slice(0, 1).toUpperCase()}
           </motion.button>
         </div>
@@ -245,7 +245,7 @@ export const Dashboard: React.FC = () => {
                   const personal = workspaces.find((w) => w.type === "personal" && w.owner_id === user?.id);
                   if (personal) switchWorkspace(personal.id);
                 }}
-                className="px-3 py-1.5 border border-[#1e1e1e] bg-[#fafafa] hover:bg-[#1e1e1e] hover:text-white text-xs font-bold transition-colors cursor-pointer"
+                className="px-3 py-1.5 border border-[#1e1e1e] bg-[#fafafa] hover:text-white hover:bg-[#ff5722] text-xs font-bold transition-colors cursor-pointer"
               >
                 ← Kembali ke Ruang Pribadi
               </button>

@@ -198,7 +198,9 @@
 }
 
 .mf-avatar:hover {
-  background: var(--mf-ink);
+  background: #1e1e1e;
+  color: var(--mf-accent);
+  border: 4px solid var(--mf-accent);
 }
 
 .mf-avatar img {

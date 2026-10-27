@@ -13,6 +13,7 @@ const Transactions = React.lazy(() => import("./pages/Transactions").then((m) =>
 const Reports = React.lazy(() => import("./pages/Reports").then((m) => ({ default: m.Reports })));
 const Settings = React.lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
 const SplitBillPage = React.lazy(() => import("./pages/SplitBill").then((m) => ({ default: m.SplitBillPage })));
+const AdminKeys = React.lazy(() => import("./pages/AdminKeys").then((m) => ({ default: m.AdminKeys })));
 
 const WalletConfigModal = React.lazy(() => import("./components/modals/WalletConfigModal").then((m) => ({ default: m.WalletConfigModal })));
 const BudgetConfigModal = React.lazy(() => import("./components/modals/BudgetConfigModal").then((m) => ({ default: m.BudgetConfigModal })));
@@ -124,6 +125,7 @@ export const App: React.FC = () => {
               <Route path="/reports" element={<Reports />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/split-bill" element={<SplitBillPage />} />
+              <Route path="/admin" element={<AdminKeys />} />
               {/* Catch all redirect to root */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

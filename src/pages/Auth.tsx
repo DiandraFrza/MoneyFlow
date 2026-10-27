@@ -76,6 +76,7 @@ export const Auth: React.FC = () => {
         setName(res.name || "");
         setPhone(res.phone || "");
         setStep("bind_profile");
+        setError("");
       } else if (res.error) {
         setError(res.error);
       }
@@ -142,7 +143,7 @@ export const Auth: React.FC = () => {
         </div>
         <div>
           <h1 className="font-bold text-2xl tracking-tight leading-none text-[#1e1e1e]">MoneyFlow Pro</h1>
-          <p className="text-xs font-semibold text-[#555555] mt-1 uppercase tracking-wider">Sistem Lisensi Presisi</p>
+          <p className="text-xs font-semibold text-[#555555] mt-1 uppercase tracking-wider">Catat Keuangan Anda dengan Mudah</p>
         </div>
       </motion.div>
 
@@ -154,10 +155,10 @@ export const Auth: React.FC = () => {
               {step === "enter_key" ? (
                 <motion.div key="header-key" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }}>
                   <div className="h-10 w-10 bg-[#1e1e1e] text-white flex items-center justify-center mx-auto mb-2.5 border border-[#1e1e1e]">
-                    <KeyRound className="h-5 w-5 text-[#ff5722]" />
+                    <KeyRound className="h-5 w-5 text-[#fefefe]" />
                   </div>
-                  <CardTitle className="text-lg font-bold text-[#1e1e1e] tracking-tight uppercase">Aktivasi Kode Akses 11-Digit</CardTitle>
-                  <CardDescription className="mt-1 text-xs text-[#555555]">Masukkan kode lisensi resmi yang Anda dapatkan dari Lynk.id.</CardDescription>
+                  <CardTitle className="text-lg font-bold text-[#1e1e1e] tracking-tight uppercase">Aktivasi Kode</CardTitle>
+                  {/* <CardDescription className="mt-1 text-xs text-[#555555]">Masukkan kode lisensi untuk login!</CardDescription> */}
                 </motion.div>
               ) : (
                 <motion.div key="header-bind" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }}>
@@ -179,9 +180,7 @@ export const Auth: React.FC = () => {
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[11px] font-bold text-[#1e1e1e] uppercase tracking-wider flex justify-between">
                       <span>Kode Akses (11 Digit)</span>
-                      <span className={cleanDigits.length === 11 ? "text-[#356342] font-black" : "text-[#ff5722] font-bold"}>
-                        {cleanDigits.length === 11 ? "✓ 11 Digit Lengkap" : `${cleanDigits.length} / 11 Digit`}
-                      </span>
+                      <span className={cleanDigits.length === 11 ? "text-[#356342] font-black" : "text-[#ff5722] font-bold"}>{cleanDigits.length === 11 ? "✓ 11 Digit Lengkap" : `${cleanDigits.length} / 11 Digit`}</span>
                     </label>
 
                     <div className="relative">
@@ -192,7 +191,7 @@ export const Auth: React.FC = () => {
                         autoComplete="username"
                         inputMode="numeric"
                         autoFocus
-                        placeholder="Contoh: 99999999999"
+                        placeholder="gasr-sswv-909"
                         value={formatKeyDisplay(cleanDigits)}
                         onChange={handleKeyChange}
                         onPaste={handleKeyPaste}
@@ -203,12 +202,7 @@ export const Auth: React.FC = () => {
 
                     <div className="flex items-center justify-between text-[11px] pt-1">
                       <label className="flex items-center gap-2 font-semibold text-[#1e1e1e] cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={rememberKey}
-                          onChange={(e) => setRememberKey(e.target.checked)}
-                          className="h-3.5 w-3.5 border border-[#1e1e1e] rounded-none accent-[#ff5722] cursor-pointer"
-                        />
+                        <input type="checkbox" checked={rememberKey} onChange={(e) => setRememberKey(e.target.checked)} className="h-3.5 w-3.5 border border-[#1e1e1e] rounded-none accent-[#ff5722] cursor-pointer" />
                         <span>Ingat Kode di Perangkat Ini (Auto-Fill)</span>
                       </label>
                       {cleanDigits && (
@@ -253,7 +247,7 @@ export const Auth: React.FC = () => {
                   {/* Free Demo Mode Button */}
                   <Button type="button" variant="outline" onClick={handleDemoMode} disabled={loading} className="w-full h-11 font-bold text-xs border-2 border-[#1e1e1e] bg-white text-[#1e1e1e] hover:bg-[#f4f4f4] transition-colors">
                     <Wallet className="h-4 w-4 mr-2 text-[#ff5722]" />
-                    Coba Mode Demo Gratis (Akses beberapa Fitur)
+                    Coba Mode Demo (Gratis)
                   </Button>
                 </motion.form>
               ) : (

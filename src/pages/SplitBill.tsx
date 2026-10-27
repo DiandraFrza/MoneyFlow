@@ -5,6 +5,7 @@ import { Users, Trash2, Share2, Copy, Receipt, Calculator, Wallet as WalletIcon 
 import { useAuthStore } from "../store/authStore";
 import { useFinanceStore } from "../store/financeStore";
 import { useToastStore } from "../store/toastStore";
+import { useConfirm } from "../store/confirmStore";
 import { db } from "../lib/repository";
 import type { SplitBill, SplitBillMember } from "../types";
 import { cn, formatCurrencyInput, parseCurrencyInput } from "../lib/utils";
@@ -15,6 +16,7 @@ export const SplitBillPage: React.FC = () => {
   const { user, activeWorkspaceId } = useAuthStore();
   const { wallets, addTransaction } = useFinanceStore();
   const { showToast } = useToastStore();
+  const confirm = useConfirm();
 
   // Mode: "create" (form) vs "history" (daftar patungan lampau)
   const [viewTab, setViewTab] = useState<"create" | "history">("create");
@@ -335,6 +337,14 @@ export const SplitBillPage: React.FC = () => {
   // Riwayat Handler
   const handleDeleteHistory = async (id: string) => {
     if (!user) return;
+    const ok = await confirm({
+      title: "Hapus Catatan Patungan",
+      message: "Apakah Anda yakin ingin menghapus catatan patungan ini dari riwayat?",
+      confirmLabel: "Ya, Hapus",
+      cancelLabel: "Batal",
+      type: "danger",
+    });
+    if (!ok) return;
     try {
       await db.splitBills.delete(user.id, id);
       setSavedBills((prev) => prev.filter((b) => b.id !== id));
